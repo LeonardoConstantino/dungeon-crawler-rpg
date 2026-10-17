@@ -1,0 +1,6 @@
+{
+  "name": "Dungeon Crawler RPG - O Abismo Lembra",
+  "description": "Roguelite dungeon crawler 2D top-down com exploração procedural infinita, combate em tempo real, progressão e suporte desktop e mobile.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
