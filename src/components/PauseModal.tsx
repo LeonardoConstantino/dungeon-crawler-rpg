@@ -20,8 +20,16 @@ export const PauseModal: React.FC<PauseModalProps> = ({
   seed,
 }) => {
   return (
-    <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 select-none animate-in fade-in duration-200">
-      <div className="bg-[#0B0E14] border border-slate-800 rounded-2xl w-full max-w-sm p-6 flex flex-col items-center text-center shadow-2xl">
+    <div
+      className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 select-none animate-in fade-in duration-200"
+      style={{
+        paddingTop: 'max(0.75rem, env(safe-area-inset-top, 0px))',
+        paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom, 0px))',
+        paddingLeft: 'max(0.75rem, env(safe-area-inset-left, 0px))',
+        paddingRight: 'max(0.75rem, env(safe-area-inset-right, 0px))',
+      }}
+    >
+      <div className="bg-[#0B0E14] border border-slate-800 rounded-2xl w-full max-w-sm max-h-[92dvh] overflow-y-auto p-5 sm:p-6 flex flex-col items-center text-center shadow-2xl">
         <h2 className="text-xl font-cinzel font-bold text-slate-100 tracking-wider mb-1">
           JOGO PAUSADO
         </h2>

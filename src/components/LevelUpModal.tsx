@@ -38,8 +38,16 @@ export const LevelUpModal: React.FC<LevelUpModalProps> = ({ options, onSelect })
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 select-none animate-in fade-in duration-300">
-      <div className="w-full max-w-2xl flex flex-col items-center">
+    <div
+      className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 select-none animate-in fade-in duration-300"
+      style={{
+        paddingTop: 'max(0.75rem, env(safe-area-inset-top, 0px))',
+        paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom, 0px))',
+        paddingLeft: 'max(0.75rem, env(safe-area-inset-left, 0px))',
+        paddingRight: 'max(0.75rem, env(safe-area-inset-right, 0px))',
+      }}
+    >
+      <div className="w-full max-w-2xl max-h-[92dvh] flex flex-col items-center overflow-y-auto p-1">
         {/* Ceremonial Header */}
         <div className="text-center mb-6">
           <div className="text-xs font-mono tracking-widest text-sky-400 uppercase mb-1">

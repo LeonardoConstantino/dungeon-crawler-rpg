@@ -14,6 +14,18 @@
     image-rendering: pixelated;
     image-rendering: crisp-edges;
   }
+  .pb-safe {
+    padding-bottom: max(1rem, env(safe-area-inset-bottom, 0px));
+  }
+  .pt-safe {
+    padding-top: max(0.75rem, env(safe-area-inset-top, 0px));
+  }
+  .pl-safe {
+    padding-left: max(0.75rem, env(safe-area-inset-left, 0px));
+  }
+  .pr-safe {
+    padding-right: max(0.75rem, env(safe-area-inset-right, 0px));
+  }
 }
 
 /* Prevent text selection and unwanted mobile gestures during combat */
@@ -21,32 +33,37 @@
   -webkit-touch-callout: none;
   -webkit-user-select: none;
   user-select: none;
-  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
-body {
+html, body, #root {
   margin: 0;
   padding: 0;
-  background-color: #090B0E;
+  width: 100%;
+  width: 100dvw;
+  height: 100%;
+  height: 100dvh;
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  background-color: #06080D;
   color: #E2E8F0;
   font-family: 'Inter', sans-serif;
-  overflow: hidden;
-  height: 100vh;
-  width: 100vw;
+  overscroll-behavior: none;
 }
 
 /* Custom scrollbars for inventory and dialogs */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 }
 ::-webkit-scrollbar-track {
-  background: #11141B;
+  background: #0B0E15;
 }
 ::-webkit-scrollbar-thumb {
-  background: #2D3748;
+  background: #1E293B;
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #4A5568;
+  background: #334155;
 }

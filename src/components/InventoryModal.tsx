@@ -24,6 +24,7 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
   const [selectedEquipSlot, setSelectedEquipSlot] = useState<keyof Equipment | null>(null);
   const [ringCompareSlot, setRingCompareSlot] = useState<'ring1' | 'ring2'>('ring1');
   const [confirmingDiscard, setConfirmingDiscard] = useState(false);
+  const [mobileTab, setMobileTab] = useState<'inventory' | 'equipment'>('inventory');
 
   const selectedItem: Item | null =
     selectedIndex !== null
@@ -108,15 +109,23 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 select-none animate-in fade-in duration-200">
-      <div className="bg-[#0D111A] border border-slate-800 rounded-2xl w-full max-w-5xl max-h-[94vh] flex flex-col shadow-2xl overflow-hidden">
+    <div
+      className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 select-none animate-in fade-in duration-200"
+      style={{
+        paddingTop: 'max(0.5rem, env(safe-area-inset-top, 0px))',
+        paddingBottom: 'max(0.5rem, env(safe-area-inset-bottom, 0px))',
+        paddingLeft: 'max(0.5rem, env(safe-area-inset-left, 0px))',
+        paddingRight: 'max(0.5rem, env(safe-area-inset-right, 0px))',
+      }}
+    >
+      <div className="bg-[#0D111A] border border-slate-800 rounded-2xl w-full max-w-5xl max-h-[92vh] max-h-[92dvh] flex flex-col shadow-2xl overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-800">
+        <div className="flex items-center justify-between px-4 sm:px-5 py-3 border-b border-slate-800">
           <div className="flex items-center gap-3">
-            <h2 className="text-base sm:text-lg font-cinzel font-bold text-slate-100 tracking-wide">
+            <h2 className="text-sm sm:text-lg font-cinzel font-bold text-slate-100 tracking-wide">
               MOCHILA E EQUIPAMENTOS
             </h2>
-            <span className="text-xs font-mono text-slate-500">
+            <span className="text-xs font-mono text-slate-500 hidden sm:inline">
               {player.inventory.filter(Boolean).length} / 20 SLOTS
             </span>
           </div>
@@ -131,10 +140,44 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
           </button>
         </div>
 
-        {/* Body 3 Columns: Equipment | Inventory Grid | Item Inspection & Comparison */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 p-4 overflow-y-auto">
-          {/* Column 1: Equipped Slots (4 cols) */}
-          <div className="lg:col-span-4 bg-[#111622] border border-slate-800/80 rounded-xl p-3.5 flex flex-col gap-2.5">
+        {/* Mobile Tab Bar (Visible on mobile/tablets < lg) */}
+        <div className="flex lg:hidden border-b border-slate-800 bg-[#090D14]">
+          <button
+            onClick={() => {
+              soundManager.playButtonClick();
+              setMobileTab('inventory');
+            }}
+            className={`flex-1 py-2.5 text-xs font-mono font-semibold flex items-center justify-center gap-1.5 border-b-2 transition-colors ${
+              mobileTab === 'inventory'
+                ? 'border-sky-500 text-sky-400 bg-slate-900/50'
+                : 'border-transparent text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <span>Mochila ({player.inventory.filter(Boolean).length}/20)</span>
+          </button>
+          <button
+            onClick={() => {
+              soundManager.playButtonClick();
+              setMobileTab('equipment');
+            }}
+            className={`flex-1 py-2.5 text-xs font-mono font-semibold flex items-center justify-center gap-1.5 border-b-2 transition-colors ${
+              mobileTab === 'equipment'
+                ? 'border-sky-500 text-sky-400 bg-slate-900/50'
+                : 'border-transparent text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <span>Equipamento</span>
+          </button>
+        </div>
+
+        {/* Body Grid: Equipment (Col 1) | Inventory Grid (Col 2) | Item Inspection & Comparison (Col 3) */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 sm:gap-4 p-3 sm:p-4 overflow-y-auto">
+          {/* Column 1: Equipped Slots */}
+          <div
+            className={`lg:col-span-4 bg-[#111622] border border-slate-800/80 rounded-xl p-3.5 flex-col gap-2.5 ${
+              mobileTab === 'equipment' ? 'flex' : 'hidden lg:flex'
+            }`}
+          >
             <h3 className="text-xs font-mono font-semibold uppercase tracking-wider text-slate-400 mb-0.5">
               Corpo do Descendente
             </h3>
@@ -221,8 +264,12 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
             </div>
           </div>
 
-          {/* Column 2: 20-Slot Grid (4 cols) */}
-          <div className="lg:col-span-4 bg-[#111622] border border-slate-800/80 rounded-xl p-3.5 flex flex-col">
+          {/* Column 2: 20-Slot Grid */}
+          <div
+            className={`lg:col-span-4 bg-[#111622] border border-slate-800/80 rounded-xl p-3.5 flex-col ${
+              mobileTab === 'inventory' ? 'flex' : 'hidden lg:flex'
+            }`}
+          >
             <h3 className="text-xs font-mono font-semibold uppercase tracking-wider text-slate-400 mb-2">
               Grade da Mochila (20 Slots)
             </h3>
@@ -269,7 +316,7 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
             </p>
           </div>
 
-          {/* Column 3: Comparison & Inspection Panel (4 cols) */}
+          {/* Column 3: Comparison & Inspection Panel */}
           <div className="lg:col-span-4 bg-[#111622] border border-slate-800/80 rounded-xl p-3.5 flex flex-col justify-between">
             {selectedItem ? (
               <div className="flex flex-col gap-3">
@@ -458,7 +505,7 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
                                 onEquip(selectedIndex);
                                 setSelectedIndex(null);
                               }}
-                              className="w-full py-2.5 px-4 rounded-lg bg-sky-700 hover:bg-sky-600 text-white text-xs font-mono font-semibold uppercase tracking-wider transition-colors shadow-md flex items-center justify-center gap-2"
+                              className="w-full py-2.5 px-4 rounded-lg bg-sky-700 hover:bg-sky-600 text-white text-xs font-mono font-semibold uppercase tracking-wider transition-colors shadow-md flex items-center justify-center gap-2 active:scale-98"
                             >
                               <Check className="w-4 h-4" />
                               <span>
@@ -507,7 +554,7 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
                 </div>
               </div>
             ) : (
-              <div className="h-full flex flex-col items-center justify-center text-center text-slate-500 text-xs font-mono py-12">
+              <div className="h-full flex flex-col items-center justify-center text-center text-slate-500 text-xs font-mono py-8 sm:py-12">
                 <Shield className="w-8 h-8 mb-2 text-slate-700" />
                 <span>Nenhum item selecionado.</span>
                 <span className="text-[11px] text-slate-600 mt-1">

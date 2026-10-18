@@ -46,7 +46,14 @@ export const MainMenu: React.FC<MainMenuProps> = ({
   };
 
   return (
-    <div className="relative w-full h-full min-h-screen bg-[#06080D] flex flex-col justify-between overflow-hidden select-none">
+    <div className="relative w-full h-full h-[100dvh] bg-[#06080D] flex flex-col justify-between overflow-y-auto select-none"
+      style={{
+        paddingTop: 'max(1rem, env(safe-area-inset-top, 0px))',
+        paddingBottom: 'max(1rem, env(safe-area-inset-bottom, 0px))',
+        paddingLeft: 'max(1rem, env(safe-area-inset-left, 0px))',
+        paddingRight: 'max(1rem, env(safe-area-inset-right, 0px))',
+      }}
+    >
       {/* Cinematic Background Image with Gradient Scrim */}
       <div className="absolute inset-0 z-0">
         <img
@@ -60,7 +67,7 @@ export const MainMenu: React.FC<MainMenuProps> = ({
       </div>
 
       {/* Top Header info */}
-      <div className="relative z-10 p-6 md:p-10 flex items-start justify-between">
+      <div className="relative z-10 px-4 py-3 sm:px-6 sm:py-6 md:px-10 flex items-start justify-between">
         <div>
           <span className="text-[11px] font-mono tracking-widest text-sky-400 uppercase block mb-1">
             Roguelite Dungeon Crawler 2D

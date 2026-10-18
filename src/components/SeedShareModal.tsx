@@ -39,8 +39,16 @@ export const SeedShareModal: React.FC<SeedShareModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 select-none animate-in fade-in duration-200">
-      <div className="bg-[#0B0E14] border border-slate-800 rounded-2xl w-full max-w-md p-6 flex flex-col shadow-2xl">
+    <div
+      className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 select-none animate-in fade-in duration-200"
+      style={{
+        paddingTop: 'max(0.75rem, env(safe-area-inset-top, 0px))',
+        paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom, 0px))',
+        paddingLeft: 'max(0.75rem, env(safe-area-inset-left, 0px))',
+        paddingRight: 'max(0.75rem, env(safe-area-inset-right, 0px))',
+      }}
+    >
+      <div className="bg-[#0B0E14] border border-slate-800 rounded-2xl w-full max-w-md max-h-[92dvh] overflow-y-auto p-5 sm:p-6 flex flex-col shadow-2xl">
         <div className="flex items-center justify-between border-b border-slate-800 pb-3 mb-4">
           <div className="flex items-center gap-2">
             <Share2 className="w-4 h-4 text-amber-400" />

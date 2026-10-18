@@ -134,11 +134,13 @@ export default function App() {
 
     const handleResize = () => {
       if (!canvas) return;
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
+      const width = window.visualViewport ? Math.round(window.visualViewport.width) : window.innerWidth;
+      const height = window.visualViewport ? Math.round(window.visualViewport.height) : window.innerHeight;
+      canvas.width = width;
+      canvas.height = height;
       if (rendererRef.current) {
         // Tile size adjusts slightly based on viewport height
-        const idealTile = Math.max(32, Math.min(48, Math.floor(window.innerHeight / 18)));
+        const idealTile = Math.max(30, Math.min(48, Math.floor(height / 18)));
         rendererRef.current.setTileSize(idealTile);
       }
     };
@@ -146,6 +148,7 @@ export default function App() {
     rendererRef.current = new GameRenderer(canvas);
     handleResize();
     window.addEventListener('resize', handleResize);
+    window.visualViewport?.addEventListener('resize', handleResize);
 
     lastTimeRef.current = performance.now();
 
@@ -185,6 +188,7 @@ export default function App() {
 
     return () => {
       window.removeEventListener('resize', handleResize);
+      window.visualViewport?.removeEventListener('resize', handleResize);
       if (animationFrameId.current) {
         cancelAnimationFrame(animationFrameId.current);
       }
@@ -282,7 +286,7 @@ export default function App() {
   const engine = engineRef.current;
 
   return (
-    <div className="relative w-screen h-screen overflow-hidden bg-[#06080D]">
+    <div className="fixed inset-0 w-full h-full h-[100dvh] overflow-hidden bg-[#06080D] select-none touch-none">
       {/* 1. Main Menu Screen */}
       {gameState === 'MENU' && (
         <MainMenu
