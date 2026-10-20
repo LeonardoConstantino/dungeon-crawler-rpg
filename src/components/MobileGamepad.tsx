@@ -9,6 +9,7 @@ interface MobileGamepadProps {
   onAttack: (pressed: boolean) => void;
   onTriggerSkill: (index: number) => void;
   onUsePotion: () => void;
+  onUseConsumable?: (index: number) => void;
   onOpenInventory: () => void;
   scale?: number;
   opacity?: number;
@@ -20,6 +21,7 @@ export const MobileGamepad: React.FC<MobileGamepadProps> = ({
   onAttack,
   onTriggerSkill,
   onUsePotion,
+  onUseConsumable,
   onOpenInventory,
   scale = 1.0,
   opacity = 0.8,
@@ -107,6 +109,11 @@ export const MobileGamepad: React.FC<MobileGamepadProps> = ({
 
   const isLowHp = player.stats.hp <= player.stats.maxHp * 0.35;
 
+  const quickConsumableIndex = player.inventory.findIndex(
+    (item) => item !== null && (item.type === 'scroll' || item.type === 'elixir')
+  );
+  const quickConsumable = quickConsumableIndex !== -1 ? player.inventory[quickConsumableIndex] : null;
+
   return (
     <div
       className="fixed inset-x-0 bottom-0 pointer-events-none select-none z-20 flex justify-between items-end touch-none"
@@ -164,7 +171,7 @@ export const MobileGamepad: React.FC<MobileGamepadProps> = ({
         )}
       </div>
 
-      {/* Right: Action Buttons (Attack, 4 Skills, Potion, Mochila) */}
+      {/* Right: Action Buttons (Attack, 4 Skills, Potion, Mochila, Consumables) */}
       <div
         className="pointer-events-auto flex items-end justify-end gap-2 sm:gap-3 touch-none m-1"
         style={{
@@ -172,8 +179,37 @@ export const MobileGamepad: React.FC<MobileGamepadProps> = ({
           transformOrigin: 'bottom right',
         }}
       >
-        {/* Quick Utility Column: Potion & Mochila */}
+        {/* Quick Utility Column: Potion, Quick Scroll/Elixir & Mochila */}
         <div className="flex flex-col gap-2 mb-1">
+          {/* Quick Consumable (Scroll / Elixir) Slot if carried */}
+          {quickConsumable && (
+            <button
+              onTouchStart={(e) => {
+                e.preventDefault();
+                if (onUseConsumable && quickConsumableIndex !== -1) {
+                  triggerHaptic(20);
+                  soundManager.playButtonClick();
+                  onUseConsumable(quickConsumableIndex);
+                }
+              }}
+              className={`w-11 h-11 sm:w-12 sm:h-12 rounded-full border flex flex-col items-center justify-center shadow-lg active:scale-90 transition-transform ${
+                quickConsumable.type === 'scroll'
+                  ? 'bg-gradient-to-tr from-amber-950 via-amber-900 to-amber-700 border-amber-500 text-amber-200 ring-1 ring-amber-400/60'
+                  : 'bg-gradient-to-tr from-purple-950 via-purple-900 to-indigo-800 border-purple-500 text-purple-200 ring-1 ring-purple-400/60'
+              }`}
+              title={`Ativar ${quickConsumable.name}`}
+            >
+              {quickConsumable.type === 'scroll' ? (
+                <Sparkles className="w-4 h-4 text-amber-300 animate-pulse" />
+              ) : (
+                <Zap className="w-4 h-4 text-purple-300 animate-pulse" />
+              )}
+              <span className="text-[7.5px] font-mono font-bold uppercase truncate max-w-[38px] leading-none mt-0.5">
+                {quickConsumable.type === 'scroll' ? 'Perg' : 'Elixir'}
+              </span>
+            </button>
+          )}
+
           {/* Mochila Button */}
           <button
             onTouchStart={(e) => {

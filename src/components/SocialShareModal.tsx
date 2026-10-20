@@ -99,19 +99,6 @@ export const SocialShareModal: React.FC<SocialShareModalProps> = ({
     setTimeout(() => setCopiedText(false), 2200);
   };
 
-  const handleShareWhatsApp = () => {
-    soundManager.playButtonClick();
-    const url = `https://api.whatsapp.com/send?text=${encodeURIComponent(shareText)}`;
-    window.open(url, '_blank');
-  };
-
-  const handleShareTwitter = () => {
-    soundManager.playButtonClick();
-    const tweet = `Sobrevivi até o Andar ${floor} no Dungeon Crawler RPG com Rank [${rankInfo.rank}]! Você aceita o desafio nesta mesma seed? ${currentUrl} #DungeonCrawler #Roguelite #IndieGame`;
-    const url = `https://twitter.com/intent/tweet?text=${encodeURIComponent(tweet)}`;
-    window.open(url, '_blank');
-  };
-
   // Generate and download a canvas image card
   const handleExportCardImage = () => {
     soundManager.playButtonClick();
@@ -398,23 +385,31 @@ export const SocialShareModal: React.FC<SocialShareModalProps> = ({
 
             {/* Social Sharing Action Buttons */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {/* WhatsApp Button */}
-              <button
-                onClick={handleShareWhatsApp}
-                className="py-2.5 px-3 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white font-mono text-xs font-bold transition-all shadow flex items-center justify-center gap-2 active:scale-98"
+              {/* WhatsApp Link */}
+              <a
+                href={`https://api.whatsapp.com/send?text=${encodeURIComponent(shareText)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => soundManager.playButtonClick()}
+                className="py-2.5 px-3 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white font-mono text-xs font-bold transition-all shadow flex items-center justify-center gap-2 active:scale-98 text-center"
               >
-                <Share2 className="w-4 h-4" />
+                <Share2 className="w-4 h-4 shrink-0" />
                 <span>Desafiar no WhatsApp</span>
-              </button>
+              </a>
 
-              {/* X / Twitter Button */}
-              <button
-                onClick={handleShareTwitter}
-                className="py-2.5 px-3 rounded-xl bg-sky-700 hover:bg-sky-600 text-white font-mono text-xs font-bold transition-all shadow flex items-center justify-center gap-2 active:scale-98"
+              {/* X / Twitter Link */}
+              <a
+                href={`https://twitter.com/intent/tweet?text=${encodeURIComponent(
+                  `Sobrevivi até o Andar ${floor} no Dungeon Crawler RPG com Rank [${rankInfo.rank}]! Você aceita o desafio nesta mesma seed? ${currentUrl} #DungeonCrawler #Roguelite #IndieGame`
+                )}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => soundManager.playButtonClick()}
+                className="py-2.5 px-3 rounded-xl bg-sky-700 hover:bg-sky-600 text-white font-mono text-xs font-bold transition-all shadow flex items-center justify-center gap-2 active:scale-98 text-center"
               >
-                <Share2 className="w-4 h-4" />
+                <Share2 className="w-4 h-4 shrink-0" />
                 <span>Compartilhar no X (Twitter)</span>
-              </button>
+              </a>
 
               {/* Copy Full Text Summary */}
               <button

@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { GameSettings } from '../game/types';
 import { Storage } from '../game/storage';
 import { soundManager } from '../game/audio';
-import { X, Volume2, VolumeX, Eye, Vibrate, Crosshair, Smartphone, Keyboard } from 'lucide-react';
+import { X, Volume2, VolumeX, Eye, Vibrate, Crosshair, Smartphone, Keyboard, Maximize, Minimize } from 'lucide-react';
 
 interface SettingsModalProps {
   onClose: () => void;
@@ -11,6 +11,77 @@ interface SettingsModalProps {
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSettingsChanged }) => {
   const [settings, setSettings] = useState<GameSettings>(Storage.getSettings());
+  const [isFullscreen, setIsFullscreen] = useState<boolean>(() => {
+    if (typeof document === 'undefined') return false;
+    return !!(
+      document.fullscreenElement ||
+      (document as any).webkitFullscreenElement ||
+      (document as any).mozFullScreenElement ||
+      (document as any).msFullscreenElement
+    );
+  });
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      const active = !!(
+        document.fullscreenElement ||
+        (document as any).webkitFullscreenElement ||
+        (document as any).mozFullScreenElement ||
+        (document as any).msFullscreenElement
+      );
+      setIsFullscreen(active);
+      updateSetting('fullscreen', active);
+    };
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+    };
+  }, []);
+
+  const handleToggleFullscreen = async () => {
+    soundManager.playButtonClick();
+    try {
+      const isCurrentlyFullscreen = !!(
+        document.fullscreenElement ||
+        (document as any).webkitFullscreenElement ||
+        (document as any).mozFullScreenElement ||
+        (document as any).msFullscreenElement
+      );
+
+      if (!isCurrentlyFullscreen) {
+        const docEl = document.documentElement as any;
+        if (docEl.requestFullscreen) {
+          await docEl.requestFullscreen();
+        } else if (docEl.webkitRequestFullscreen) {
+          await docEl.webkitRequestFullscreen();
+        } else if (docEl.mozRequestFullScreen) {
+          await docEl.mozRequestFullScreen();
+        } else if (docEl.msRequestFullscreen) {
+          await docEl.msRequestFullscreen();
+        }
+        setIsFullscreen(true);
+        updateSetting('fullscreen', true);
+      } else {
+        const doc = document as any;
+        if (doc.exitFullscreen) {
+          await doc.exitFullscreen();
+        } else if (doc.webkitExitFullscreen) {
+          await doc.webkitExitFullscreen();
+        } else if (doc.mozCancelFullScreen) {
+          await doc.mozCancelFullScreen();
+        } else if (doc.msExitFullscreen) {
+          await doc.msExitFullscreen();
+        }
+        setIsFullscreen(false);
+        updateSetting('fullscreen', false);
+      }
+    } catch (err) {
+      console.warn('Fullscreen request blocked or unsupported:', err);
+    }
+  };
 
   const updateSetting = <K extends keyof GameSettings>(key: K, value: GameSettings[K]) => {
     const updated = { ...settings, [key]: value };
@@ -185,17 +256,52 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSetting
             </div>
           </div>
 
-          {/* Virtual Gamepad Settings */}
+          {/* Mobile Display & Virtual Gamepad Settings */}
           <div>
             <h3 className="text-xs font-mono font-bold uppercase tracking-wider text-slate-400 mb-3 flex items-center gap-2">
               <Smartphone className="w-4 h-4 text-emerald-400" />
-              <span>Controles Mobile (Gamepad Virtual)</span>
+              <span>Display & Controles Mobile</span>
             </h3>
 
-            <div className="space-y-3 bg-[#111520] p-4 rounded-xl border border-slate-800/80">
+            <div className="space-y-4 bg-[#111520] p-4 rounded-xl border border-slate-800/80">
+              {/* Fullscreen Toggle for Mobile & Desktop */}
+              <div className="flex items-center justify-between pb-3 border-b border-slate-800/80">
+                <div className="pr-3">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-slate-200 block font-bold font-inter">Modo Tela Cheia (Fullscreen)</span>
+                    <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-emerald-950/60 text-emerald-400 border border-emerald-800/60">
+                      Mobile
+                    </span>
+                  </div>
+                  <span className="text-[11px] text-slate-400 block mt-0.5">
+                    Oculta as barras do navegador para maximizar o campo de batalha e o conforto com joystick virtual.
+                  </span>
+                </div>
+                <button
+                  onClick={handleToggleFullscreen}
+                  className={`px-3.5 py-2 rounded-lg text-xs font-mono font-bold transition-all shadow-md shrink-0 flex items-center gap-1.5 active:scale-95 ${
+                    isFullscreen
+                      ? 'bg-emerald-600 hover:bg-emerald-500 text-white border border-emerald-400 ring-2 ring-emerald-500/40'
+                      : 'bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700'
+                  }`}
+                >
+                  {isFullscreen ? (
+                    <>
+                      <Minimize className="w-3.5 h-3.5" />
+                      <span>Ativo (Sair)</span>
+                    </>
+                  ) : (
+                    <>
+                      <Maximize className="w-3.5 h-3.5" />
+                      <span>Ativar</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
               <div>
                 <div className="flex justify-between text-xs text-slate-400 mb-1 font-mono">
-                  <span>Tamanho do Joystick:</span>
+                  <span>Tamanho do Joystick Virtual:</span>
                   <span>{Math.round(settings.virtualJoystickScale * 100)}%</span>
                 </div>
                 <input
@@ -205,13 +311,13 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSetting
                   step="0.05"
                   value={settings.virtualJoystickScale}
                   onChange={(e) => updateSetting('virtualJoystickScale', parseFloat(e.target.value))}
-                  className="w-full accent-emerald-500 bg-slate-900 rounded-lg h-1.5"
+                  className="w-full accent-emerald-500 bg-slate-900 rounded-lg h-1.5 cursor-pointer"
                 />
               </div>
 
               <div>
                 <div className="flex justify-between text-xs text-slate-400 mb-1 font-mono">
-                  <span>Opacidade dos Botões:</span>
+                  <span>Opacidade dos Botões na Tela:</span>
                   <span>{Math.round(settings.virtualJoystickOpacity * 100)}%</span>
                 </div>
                 <input
@@ -221,7 +327,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSetting
                   step="0.05"
                   value={settings.virtualJoystickOpacity}
                   onChange={(e) => updateSetting('virtualJoystickOpacity', parseFloat(e.target.value))}
-                  className="w-full accent-emerald-500 bg-slate-900 rounded-lg h-1.5"
+                  className="w-full accent-emerald-500 bg-slate-900 rounded-lg h-1.5 cursor-pointer"
                 />
               </div>
             </div>

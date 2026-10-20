@@ -41,6 +41,7 @@ const DEFAULT_SETTINGS: GameSettings = {
   aimAssist: true,
   virtualJoystickScale: 1.0,
   virtualJoystickOpacity: 0.75,
+  fullscreen: false,
 };
 
 const DEFAULT_ASCENSION: AscensionUpgrades = {

@@ -330,6 +330,7 @@ export default function App() {
               onAttack={(pressed) => engine.setAttackPressed(pressed)}
               onTriggerSkill={(idx) => engine.triggerSkill(idx)}
               onUsePotion={() => engine.usePotion()}
+              onUseConsumable={(idx) => engine.equipItem(idx)}
               onOpenInventory={() => setIsInventoryOpen(true)}
               scale={engine.settings.virtualJoystickScale}
               opacity={engine.settings.virtualJoystickOpacity}

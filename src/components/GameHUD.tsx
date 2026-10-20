@@ -30,6 +30,54 @@ export const GameHUD: React.FC<GameHUDProps> = ({
 }) => {
   const [minimapZoomed, setMinimapZoomed] = useState(false);
   const [mobileMinimapVisible, setMobileMinimapVisible] = useState(true);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  React.useEffect(() => {
+    const checkFullscreen = () => {
+      setIsFullscreen(
+        !!(
+          document.fullscreenElement ||
+          (document as any).webkitFullscreenElement ||
+          (document as any).mozFullScreenElement ||
+          (document as any).msFullscreenElement
+        )
+      );
+    };
+    checkFullscreen();
+    document.addEventListener('fullscreenchange', checkFullscreen);
+    document.addEventListener('webkitfullscreenchange', checkFullscreen);
+    return () => {
+      document.removeEventListener('fullscreenchange', checkFullscreen);
+      document.removeEventListener('webkitfullscreenchange', checkFullscreen);
+    };
+  }, []);
+
+  const handleToggleFullscreen = async () => {
+    soundManager.playButtonClick();
+    try {
+      const isCurrentlyFullscreen = !!(
+        document.fullscreenElement ||
+        (document as any).webkitFullscreenElement ||
+        (document as any).mozFullScreenElement ||
+        (document as any).msFullscreenElement
+      );
+      if (!isCurrentlyFullscreen) {
+        const docEl = document.documentElement as any;
+        if (docEl.requestFullscreen) await docEl.requestFullscreen();
+        else if (docEl.webkitRequestFullscreen) await docEl.webkitRequestFullscreen();
+        else if (docEl.mozRequestFullScreen) await docEl.mozRequestFullScreen();
+        else if (docEl.msRequestFullscreen) await docEl.msRequestFullscreen();
+      } else {
+        const doc = document as any;
+        if (doc.exitFullscreen) await doc.exitFullscreen();
+        else if (doc.webkitExitFullscreen) await doc.webkitExitFullscreen();
+        else if (doc.mozCancelFullScreen) await doc.mozCancelFullScreen();
+        else if (doc.msExitFullscreen) await doc.msExitFullscreen();
+      }
+    } catch (err) {
+      console.warn('Fullscreen toggle failed:', err);
+    }
+  };
 
   const hpPct = Math.max(0, Math.min(100, (player.stats.hp / player.stats.maxHp) * 100));
   const xpPct = Math.max(0, Math.min(100, (player.stats.xp / player.stats.xpToNextLevel) * 100));
@@ -280,6 +328,23 @@ export const GameHUD: React.FC<GameHUDProps> = ({
                 <Map className={`w-4 h-4 ${mobileMinimapVisible ? 'text-sky-400' : 'text-slate-500'}`} />
               </button>
             )}
+
+            {/* Fullscreen Toggle Button */}
+            <button
+              onClick={handleToggleFullscreen}
+              title={isFullscreen ? 'Sair da Tela Cheia' : 'Tela Cheia (Fullscreen)'}
+              className={`bg-[#0B0F17]/90 hover:bg-slate-800 border rounded-lg p-2 transition-all shadow-lg flex items-center justify-center active:scale-95 ${
+                isFullscreen
+                  ? 'border-emerald-600/80 text-emerald-400 bg-emerald-950/40 ring-1 ring-emerald-500/50'
+                  : 'border-slate-800 text-slate-300 hover:text-white'
+              }`}
+            >
+              {isFullscreen ? (
+                <Minimize2 className="w-4 h-4" />
+              ) : (
+                <Maximize2 className="w-4 h-4" />
+              )}
+            </button>
 
             {/* Pause Button */}
             <button

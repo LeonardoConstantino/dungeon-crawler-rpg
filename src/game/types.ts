@@ -258,6 +258,7 @@ export interface GameSettings {
   aimAssist: boolean;
   virtualJoystickScale: number;
   virtualJoystickOpacity: number;
+  fullscreen?: boolean;
 }
 
 export interface LevelUpOption {
