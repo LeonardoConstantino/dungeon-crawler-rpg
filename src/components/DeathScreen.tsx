@@ -1,6 +1,6 @@
 import React from 'react';
+import { Skull, RefreshCw, Sparkles, Home, Share2 } from 'lucide-react';
 import { soundManager } from '../game/audio';
-import { Skull, RefreshCw, Sparkles, Home } from 'lucide-react';
 
 interface DeathScreenProps {
   floor: number;
@@ -12,6 +12,7 @@ interface DeathScreenProps {
   onRetry: () => void;
   onOpenAscension: () => void;
   onReturnMenu: () => void;
+  onShare?: () => void;
 }
 
 export const DeathScreen: React.FC<DeathScreenProps> = ({
@@ -24,6 +25,7 @@ export const DeathScreen: React.FC<DeathScreenProps> = ({
   onRetry,
   onOpenAscension,
   onReturnMenu,
+  onShare,
 }) => {
   const formatTime = (secs: number) => {
     const mins = Math.floor(secs / 60);
@@ -93,7 +95,7 @@ export const DeathScreen: React.FC<DeathScreenProps> = ({
         </div>
 
         {/* Action Buttons */}
-        <div className="flex flex-col sm:flex-row items-center gap-3 w-full">
+        <div className="flex flex-col sm:flex-row items-center gap-3 w-full mb-3">
           <button
             onClick={() => {
               soundManager.playButtonClick();
@@ -116,6 +118,19 @@ export const DeathScreen: React.FC<DeathScreenProps> = ({
             <span>Ver Ascensão</span>
           </button>
         </div>
+
+        {onShare && (
+          <button
+            onClick={() => {
+              soundManager.playButtonClick();
+              onShare();
+            }}
+            className="w-full py-2.5 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 border border-amber-500/50 hover:border-amber-400 text-amber-300 font-mono font-bold text-xs uppercase tracking-wider transition-all flex items-center justify-center gap-2 shadow-md active:scale-98"
+          >
+            <Share2 className="w-4 h-4 text-amber-400" />
+            <span>Compartilhar Desafio & Salvar Card</span>
+          </button>
+        )}
 
         <button
           onClick={() => {

@@ -391,6 +391,79 @@ class SoundEngine {
     osc.stop(t + 0.3);
   }
 
+  public playScrollCast() {
+    this.initContext();
+    if (!this.ctx || !this.sfxGain || this.settings.isMuted) return;
+
+    const t = this.ctx.currentTime;
+    // Harmonic upward sweep with mystical chime
+    [329, 440, 659, 880, 1318].forEach((freq, idx) => {
+      if (!this.ctx || !this.sfxGain) return;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, t + idx * 0.05);
+      osc.frequency.exponentialRampToValueAtTime(freq * 1.5, t + 0.35 + idx * 0.05);
+
+      gain.gain.setValueAtTime(0.2, t + idx * 0.05);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.6 + idx * 0.05);
+
+      osc.connect(gain);
+      gain.connect(this.sfxGain);
+
+      osc.start(t + idx * 0.05);
+      osc.stop(t + 0.65 + idx * 0.05);
+    });
+  }
+
+  public playElixirDrink() {
+    this.initContext();
+    if (!this.ctx || !this.sfxGain || this.settings.isMuted) return;
+
+    const t = this.ctx.currentTime;
+    // Bubbling liquid pop
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(400, t);
+    osc.frequency.exponentialRampToValueAtTime(700, t + 0.08);
+    osc.frequency.exponentialRampToValueAtTime(1100, t + 0.18);
+
+    gain.gain.setValueAtTime(0.25, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.22);
+
+    osc.connect(gain);
+    gain.connect(this.sfxGain);
+
+    osc.start(t);
+    osc.stop(t + 0.23);
+  }
+
+  public playAbyssWarning() {
+    this.initContext();
+    if (!this.ctx || !this.sfxGain || this.settings.isMuted) return;
+
+    const t = this.ctx.currentTime;
+    // Low sub-bass ominous rumble / heartbeat
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(75, t);
+    osc.frequency.exponentialRampToValueAtTime(35, t + 0.4);
+
+    gain.gain.setValueAtTime(0.35, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.45);
+
+    osc.connect(gain);
+    gain.connect(this.sfxGain);
+
+    osc.start(t);
+    osc.stop(t + 0.5);
+  }
+
   public playButtonClick() {
     this.initContext();
     if (!this.ctx || !this.sfxGain || this.settings.isMuted) return;

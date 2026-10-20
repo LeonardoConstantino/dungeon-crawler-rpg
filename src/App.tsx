@@ -14,7 +14,7 @@ import { DeathScreen } from './components/DeathScreen';
 import { AscensionModal } from './components/AscensionModal';
 import { PauseModal } from './components/PauseModal';
 import { SettingsModal } from './components/SettingsModal';
-import { SeedShareModal } from './components/SeedShareModal';
+import { SocialShareModal } from './components/SocialShareModal';
 import { HistoryModal } from './components/HistoryModal';
 
 export default function App() {
@@ -389,6 +389,7 @@ export default function App() {
           }}
           onOpenInventory={() => setIsInventoryOpen(true)}
           onOpenSettings={() => setIsSettingsOpen(true)}
+          onOpenShare={() => setIsSeedShareOpen(true)}
           onSaveAndExit={() => {
             engine.saveCurrentProgress();
             engine.isPaused = false;
@@ -411,6 +412,7 @@ export default function App() {
           seed={engine.seed}
           onRetry={() => startGame(undefined, engine.activeSlotId, false)}
           onOpenAscension={() => setIsAscensionOpen(true)}
+          onShare={() => setIsSeedShareOpen(true)}
           onReturnMenu={() => {
             setIsPauseOpen(false);
             setIsInventoryOpen(false);
@@ -453,11 +455,18 @@ export default function App() {
         />
       )}
 
-      {/* 10. Seed Share Modal */}
+      {/* 10. Social Share & Challenge Modal */}
       {isSeedShareOpen && engine && (
-        <SeedShareModal
+        <SocialShareModal
           currentSeed={engine.seed}
           floor={engine.currentFloorNumber}
+          level={engine.player.stats.level}
+          kills={engine.enemiesKilledCount}
+          playtimeSeconds={Math.round((Date.now() - engine.runStartTime) / 1000)}
+          remnantsEarned={engine.abyssRemnantsEarned}
+          player={engine.player}
+          isVictory={engine.isVictory}
+          causeOfDeath={isDead ? 'Consumido pela Fome do Abismo' : 'Descendendo no Abismo'}
           onClose={() => setIsSeedShareOpen(false)}
           onStartCustomSeed={(customSeed) => startGame(customSeed)}
         />

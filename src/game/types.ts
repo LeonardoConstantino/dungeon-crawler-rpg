@@ -1,6 +1,25 @@
 export type ItemRarity = 'common' | 'rare' | 'legendary';
 
-export type ItemType = 'weapon' | 'armor' | 'ring' | 'amulet' | 'potion' | 'scroll';
+export type ItemType = 'weapon' | 'armor' | 'ring' | 'amulet' | 'potion' | 'scroll' | 'elixir';
+
+export type ScrollEffectType =
+  | 'teleport'
+  | 'reveal_map'
+  | 'nova_flames'
+  | 'suppress_hunger'
+  | 'shield_barrier'
+  | 'transmute';
+
+export type ElixirEffectType = 'blood_fury' | 'night_wind';
+
+export interface PlayerBuff {
+  id: string;
+  name: string;
+  icon: string;
+  timer: number;
+  maxTimer: number;
+  type: 'fury' | 'speed' | 'ward' | 'hunger_freeze';
+}
 
 export interface Item {
   id: string;
@@ -18,6 +37,9 @@ export interface Item {
     cooldownReduction?: number; // 0 to 1
   };
   healAmount?: number;
+  scrollEffect?: ScrollEffectType;
+  elixirEffect?: ElixirEffectType;
+  duration?: number;
   value: number;
 }
 
@@ -179,7 +201,9 @@ export interface DungeonFloor {
   stairsPos: { x: number; y: number };
   playerSpawn: { x: number; y: number };
   ambientColor: string;
-  hungerLevel: number; // 0 to 10
+  hungerLevel: number; // 0 to 4 (0: Dormente, 1: Agitação, 2: Despertar, 3: Fissura Crítica, 4: Consumido)
+  floorTimer: number; // real-time elapsed seconds on this floor
+  isHungerFrozen?: boolean;
 }
 
 export interface PlayerStats {
@@ -256,6 +280,7 @@ export interface PlayerState {
   equipment: Equipment;
   inventory: (Item | null)[]; // 20 slots
   skills: Skill[];
+  activeBuffs: PlayerBuff[];
   isAttacking: boolean;
   attackTimer: number;
   attackCombo: number;

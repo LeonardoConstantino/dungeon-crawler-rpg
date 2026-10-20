@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Equipment, Item, PlayerState } from '../game/types';
-import { X, Shield, Sword, Heart, Sparkles, Trash2, ArrowUp, ArrowDown, Minus, Check, AlertTriangle } from 'lucide-react';
+import { X, Shield, Sword, Heart, Sparkles, Trash2, ArrowUp, ArrowDown, Minus, Check, AlertTriangle, Zap } from 'lucide-react';
 import { soundManager } from '../game/audio';
 
 interface InventoryModalProps {
@@ -499,6 +499,28 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
                                 </span>
                               </button>
                             </div>
+                          ) : selectedItem.type === 'scroll' ? (
+                            <button
+                              onClick={() => {
+                                onEquip(selectedIndex);
+                                setSelectedIndex(null);
+                              }}
+                              className="w-full py-2.5 px-4 rounded-lg bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white text-xs font-mono font-bold uppercase tracking-wider transition-all shadow-lg flex items-center justify-center gap-2 active:scale-98 ring-1 ring-amber-400/40"
+                            >
+                              <Sparkles className="w-4 h-4 text-amber-200" />
+                              <span>Ativar Pergaminho</span>
+                            </button>
+                          ) : selectedItem.type === 'elixir' ? (
+                            <button
+                              onClick={() => {
+                                onEquip(selectedIndex);
+                                setSelectedIndex(null);
+                              }}
+                              className="w-full py-2.5 px-4 rounded-lg bg-gradient-to-r from-purple-700 to-indigo-700 hover:from-purple-600 hover:to-indigo-600 text-white text-xs font-mono font-bold uppercase tracking-wider transition-all shadow-lg flex items-center justify-center gap-2 active:scale-98 ring-1 ring-purple-400/40"
+                            >
+                              <Zap className="w-4 h-4 text-purple-200" />
+                              <span>Consumir Elixir</span>
+                            </button>
                           ) : (
                             <button
                               onClick={() => {
@@ -510,7 +532,7 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
                               <Check className="w-4 h-4" />
                               <span>
                                 {selectedItem.type === 'potion'
-                                  ? 'Beber Frasco de Sangue'
+                                  ? 'Beber Frasco de Sangue (+45% HP)'
                                   : equippedComparisonItem
                                   ? `Substituir ${equippedComparisonItem.name.split(' ')[0]}`
                                   : 'Equipar no Corpo'}

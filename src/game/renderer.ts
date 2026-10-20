@@ -86,6 +86,36 @@ export class GameRenderer {
       ctx.fillStyle = grad;
       ctx.fillRect(0, 0, width, height);
     }
+
+    // 11. Abyss Hunger Atmospheric Vignette (Screen Space)
+    if (dungeon.hungerLevel >= 1) {
+      const hunger = dungeon.hungerLevel;
+      const pulseSpeed = hunger >= 3 ? 4 : 2;
+      const pulseIntensity = 0.06 + Math.sin(this.time * pulseSpeed) * 0.04;
+      
+      const grad = ctx.createRadialGradient(
+        width / 2, height / 2, width * 0.35,
+        width / 2, height / 2, width * 0.78
+      );
+
+      if (hunger === 1) {
+        grad.addColorStop(0, 'rgba(10, 14, 25, 0)');
+        grad.addColorStop(1, `rgba(5, 7, 15, ${0.25 + pulseIntensity})`);
+      } else if (hunger === 2) {
+        grad.addColorStop(0, 'rgba(80, 15, 30, 0)');
+        grad.addColorStop(1, `rgba(120, 20, 45, ${0.35 + pulseIntensity})`);
+      } else if (hunger === 3) {
+        grad.addColorStop(0, 'rgba(140, 15, 35, 0)');
+        grad.addColorStop(1, `rgba(180, 20, 50, ${0.45 + pulseIntensity * 1.5})`);
+      } else {
+        const flash = 0.5 + Math.sin(this.time * 6) * 0.18;
+        grad.addColorStop(0, 'rgba(120, 10, 40, 0.08)');
+        grad.addColorStop(1, `rgba(220, 20, 60, ${flash})`);
+      }
+
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, width, height);
+    }
   }
 
   private renderTiles(

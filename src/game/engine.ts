@@ -43,6 +43,11 @@ export class GameEngine {
   public enemiesKilledCount = 0;
   public abyssRemnantsEarned = 0;
 
+  // Real-time Floor Abyss Hunger state
+  public floorHungerFrozenTimer = 0;
+  private abyssDamageTickTimer = 0;
+  private lastAnnouncedHungerStage = 0;
+
   // Callbacks to UI
   public onLevelUp?: (options: LevelUpOption[]) => void;
   public onPlayerDeath?: () => void;
@@ -179,6 +184,17 @@ export class GameEngine {
       healAmount: 45,
       stats: {},
     };
+    inventory[1] = {
+      id: 'scroll-init-1',
+      name: 'Pergaminho da Revelação Arcana',
+      type: 'scroll',
+      rarity: 'common',
+      description: 'Dissipa instantaneamente toda a névoa do andar e revela salas, escadas e altares.',
+      icon: 'scroll',
+      scrollEffect: 'reveal_map',
+      value: 25,
+      stats: {},
+    };
 
     this.player = {
       x: 5,
@@ -208,6 +224,7 @@ export class GameEngine {
       },
       inventory,
       skills: defaultSkills,
+      activeBuffs: [],
       isAttacking: false,
       attackTimer: 0,
       attackCombo: 0,
@@ -217,6 +234,17 @@ export class GameEngine {
       potionsCount: 2,
     };
 
+    this.recalculatePlayerStats();
+  }
+
+  public addBuff(buff: import('./types').PlayerBuff) {
+    if (!this.player.activeBuffs) this.player.activeBuffs = [];
+    const existingIndex = this.player.activeBuffs.findIndex((b) => b.type === buff.type);
+    if (existingIndex !== -1) {
+      this.player.activeBuffs[existingIndex] = buff;
+    } else {
+      this.player.activeBuffs.push(buff);
+    }
     this.recalculatePlayerStats();
   }
 
@@ -250,10 +278,26 @@ export class GameEngine {
     }
 
     const atkBonus = 1 + this.ascension.attackLevel * 0.08;
-    this.player.stats.baseAttack = Math.round(12 * atkBonus) + extraAtk;
+    let baseAtk = Math.round(12 * atkBonus) + extraAtk;
+    let baseCrit = 0.05 + extraCrit;
+    let speed = 3.8 + extraSpeed;
+
+    // Apply active buffs (Fúria Sanguínea, Vento Noturno)
+    if (this.player.activeBuffs && this.player.activeBuffs.length > 0) {
+      this.player.activeBuffs.forEach((buff) => {
+        if (buff.type === 'fury') {
+          baseAtk = Math.round(baseAtk * 1.5);
+          baseCrit += 0.25;
+        } else if (buff.type === 'speed') {
+          speed = Number((speed * 1.4).toFixed(2));
+        }
+      });
+    }
+
+    this.player.stats.baseAttack = baseAtk;
     this.player.stats.baseDefense = 3 + extraDef;
-    this.player.stats.baseSpeed = 3.8 + extraSpeed;
-    this.player.stats.critChance = Number((0.05 + extraCrit).toFixed(2));
+    this.player.stats.baseSpeed = speed;
+    this.player.stats.critChance = Math.min(1.0, Number(baseCrit.toFixed(2)));
     this.player.stats.cooldownReduction = Math.min(0.50, Number((this.ascension.cooldownLevel * 0.05 + extraCd).toFixed(2)));
   }
 
@@ -283,6 +327,13 @@ export class GameEngine {
 
     // Recalculate initial vision
     updateFogOfWar(this.dungeon, this.player.x, this.player.y, this.player.stats.visionRadius);
+
+    // Reset floor hunger timers for fresh floor
+    this.floorHungerFrozenTimer = 0;
+    this.abyssDamageTickTimer = 0;
+    this.lastAnnouncedHungerStage = 0;
+    this.dungeon.floorTimer = 0;
+    this.dungeon.isHungerFrozen = false;
 
     if (this.onFloorChange) {
       this.onFloorChange(floorNum);
@@ -494,6 +545,70 @@ export class GameEngine {
     this.cameraShake.x *= 0.85;
     this.cameraShake.y *= 0.85;
 
+    // 0. Update Floor Real-Time Timer & Abyss Hunger
+    if (this.floorHungerFrozenTimer > 0) {
+      this.floorHungerFrozenTimer -= dt;
+      this.dungeon.isHungerFrozen = true;
+    } else {
+      this.dungeon.isHungerFrozen = false;
+      this.dungeon.floorTimer += dt;
+    }
+
+    // Hunger Stages:
+    // Stage 0: 0 - 60s (Sombra Dormente)
+    // Stage 1: 60 - 120s (Agitação das Sombras)
+    // Stage 2: 120 - 180s (Despertar da Fome)
+    // Stage 3: 180 - 240s (Fissura Crítica)
+    // Stage 4: > 240s (Consumido pelo Abismo)
+    const fTimer = this.dungeon.floorTimer;
+    let newStage = 0;
+    if (fTimer >= 240) newStage = 4;
+    else if (fTimer >= 180) newStage = 3;
+    else if (fTimer >= 120) newStage = 2;
+    else if (fTimer >= 60) newStage = 1;
+    else newStage = 0;
+
+    this.dungeon.hungerLevel = newStage;
+
+    if (newStage > this.lastAnnouncedHungerStage) {
+      this.lastAnnouncedHungerStage = newStage;
+      soundManager.playAbyssWarning();
+      this.triggerScreenShake(8);
+      if (newStage === 1) {
+        if (this.onMessage) this.onMessage('A Fome do Abismo se agita... Inimigos estão mais rápidos.', 'info');
+      } else if (newStage === 2) {
+        if (this.onMessage) this.onMessage('O Abismo desperta! Inimigos causam dano amplificado.', 'rare');
+      } else if (newStage === 3) {
+        if (this.onMessage) this.onMessage('ALERTA: Fissura Crítica no andar! A Fome está insaciável!', 'danger');
+      } else if (newStage === 4) {
+        if (this.onMessage) this.onMessage('O ANDAR FOI CONSUMIDO! O vazio devora sua vida — Encontre as escadas!', 'danger');
+      }
+    }
+
+    // Stage 4 Penalty: void damage tick if staying too long
+    if (newStage >= 4) {
+      this.abyssDamageTickTimer += dt;
+      if (this.abyssDamageTickTimer >= 3.5) {
+        this.abyssDamageTickTimer = 0;
+        this.damagePlayer(4);
+        this.addFloatingText(this.player.x, this.player.y - 0.7, 'Dano do Vazio (-4)', '#9333EA');
+        this.triggerScreenShake(5);
+      }
+    }
+
+    // Update Player Active Buffs
+    if (this.player.activeBuffs && this.player.activeBuffs.length > 0) {
+      let buffChanged = false;
+      this.player.activeBuffs.forEach((b) => {
+        b.timer -= dt;
+        if (b.timer <= 0) buffChanged = true;
+      });
+      this.player.activeBuffs = this.player.activeBuffs.filter((b) => b.timer > 0);
+      if (buffChanged) {
+        this.recalculatePlayerStats();
+      }
+    }
+
     // 1. Update Player Movement
     const speed = this.player.stats.baseSpeed;
     const moveX = this.moveInput.x * speed * dt;
@@ -625,14 +740,19 @@ export class GameEngine {
           enemy.attackCooldown -= dt;
         }
 
-        // Behavior by Type
+        // Behavior by Type scaled by Abyss Hunger
+        const hungerSpeedMult = 1 + (this.dungeon.hungerLevel * 0.12);
+        const hungerAtkMult = 1 + (this.dungeon.hungerLevel * 0.18);
+        const effectiveSpeed = enemy.speed * hungerSpeedMult;
+        const effectiveAttack = Math.round(enemy.attack * hungerAtkMult);
+
         if (enemy.type === 'archer') {
           // Keep distance (3.5 to 6.0 tiles)
           if (dist < 3.5) {
             // Back away
             const awayAngle = Math.atan2(enemy.y - this.player.y, enemy.x - this.player.x);
-            const nx = enemy.x + Math.cos(awayAngle) * enemy.speed * dt;
-            const ny = enemy.y + Math.sin(awayAngle) * enemy.speed * dt;
+            const nx = enemy.x + Math.cos(awayAngle) * effectiveSpeed * dt;
+            const ny = enemy.y + Math.sin(awayAngle) * effectiveSpeed * dt;
             if (!this.isTileWall(nx, ny)) {
               enemy.x = nx;
               enemy.y = ny;
@@ -640,8 +760,8 @@ export class GameEngine {
           } else if (dist > 5.5) {
             // Approach
             const angle = Math.atan2(this.player.y - enemy.y, this.player.x - enemy.x);
-            const nx = enemy.x + Math.cos(angle) * enemy.speed * dt;
-            const ny = enemy.y + Math.sin(angle) * enemy.speed * dt;
+            const nx = enemy.x + Math.cos(angle) * effectiveSpeed * dt;
+            const ny = enemy.y + Math.sin(angle) * effectiveSpeed * dt;
             if (!this.isTileWall(nx, ny)) {
               enemy.x = nx;
               enemy.y = ny;
@@ -660,7 +780,7 @@ export class GameEngine {
               vx: Math.cos(angle) * 7.5,
               vy: Math.sin(angle) * 7.5,
               radius: 0.15,
-              damage: enemy.attack,
+              damage: effectiveAttack,
               isHostile: true,
               lifetime: 1.8,
               color: '#F59E0B',
@@ -679,7 +799,7 @@ export class GameEngine {
               radius: 1.4,
               maxTimer: 1.1,
               timer: 0,
-              damage: enemy.attack * 1.5,
+              damage: Math.round(effectiveAttack * 1.5),
               exploded: false,
               color: '#C084FC',
             });
@@ -689,8 +809,8 @@ export class GameEngine {
           const attackRange = enemy.type === 'boss' ? 1.6 : 1.0;
           if (dist > attackRange) {
             const angle = Math.atan2(this.player.y - enemy.y, this.player.x - enemy.x);
-            const nx = enemy.x + Math.cos(angle) * enemy.speed * dt;
-            const ny = enemy.y + Math.sin(angle) * enemy.speed * dt;
+            const nx = enemy.x + Math.cos(angle) * effectiveSpeed * dt;
+            const ny = enemy.y + Math.sin(angle) * effectiveSpeed * dt;
             if (!this.isTileWall(nx, ny)) {
               enemy.x = nx;
               enemy.y = ny;
@@ -698,7 +818,7 @@ export class GameEngine {
           } else if (enemy.attackCooldown <= 0) {
             // Melee strike
             enemy.attackCooldown = enemy.maxAttackCooldown;
-            this.damagePlayer(enemy.attack);
+            this.damagePlayer(effectiveAttack);
             soundManager.playEnemyAlert(enemy.type);
           }
         }
@@ -744,6 +864,11 @@ export class GameEngine {
   private killEnemy(enemy: Enemy) {
     this.enemiesKilledCount++;
     this.addXp(enemy.xpReward);
+
+    // Satiate the floor hunger
+    const satiateSec = enemy.isElite ? 8 : 4;
+    this.dungeon.floorTimer = Math.max(0, this.dungeon.floorTimer - satiateSec);
+    this.addFloatingText(enemy.x, enemy.y - 0.3, `-${satiateSec}s Fome`, '#38BDF8');
 
     // Chance to drop items
     const dropRoll = Math.random();
@@ -1023,13 +1148,159 @@ export class GameEngine {
     const bonusRemnants = 6;
     this.abyssRemnantsEarned += bonusRemnants;
     Storage.addAbyssRemnants(bonusRemnants);
-    this.addFloatingText(tileX + 0.5, tileY - 0.5, `+${bonusRemnants} Vestígios do Abismo`, '#E11D48');
-    if (this.onMessage) this.onMessage('A Fissura do Abismo reagiu à sua presença...', 'danger');
+    this.dungeon.floorTimer = Math.max(0, this.dungeon.floorTimer - 20);
+    this.addFloatingText(tileX + 0.5, tileY - 0.5, `+${bonusRemnants} Vestígios (-20s Fome)`, '#E11D48');
+    if (this.onMessage) this.onMessage('A Fissura do Abismo reagiu à sua presença e saciou a Fome temporariamente!', 'danger');
+  }
+
+  public useItem(inventoryIndex: number): boolean {
+    const item = this.player.inventory[inventoryIndex];
+    if (!item) return false;
+
+    if (item.type === 'potion') {
+      if (this.player.stats.hp >= this.player.stats.maxHp) {
+        if (this.onMessage) this.onMessage('Sua vida já está no máximo!', 'info');
+        return false;
+      }
+      const heal = Math.round(this.player.stats.maxHp * 0.45);
+      this.player.stats.hp = Math.min(this.player.stats.maxHp, this.player.stats.hp + heal);
+      this.player.inventory[inventoryIndex] = null;
+      soundManager.playAmuletShield();
+      this.addFloatingText(this.player.x, this.player.y - 0.5, `+${heal} HP`, '#10B981');
+      this.createParticles(this.player.x, this.player.y, '#10B981', 14);
+      if (this.onMessage) this.onMessage('Frasco de Sangue Frio consumido (+45% HP).', 'info');
+      return true;
+    }
+
+    if (item.type === 'elixir') {
+      soundManager.playElixirDrink();
+      this.player.inventory[inventoryIndex] = null;
+
+      if (item.elixirEffect === 'blood_fury') {
+        this.addBuff({
+          id: `buff-fury-${Date.now()}`,
+          name: 'Fúria Sanguínea',
+          icon: 'sword',
+          timer: item.duration || 15,
+          maxTimer: item.duration || 15,
+          type: 'fury',
+        });
+        this.addFloatingText(this.player.x, this.player.y - 0.5, '+50% ATQ / +25% CRIT', '#EF4444');
+        this.createParticles(this.player.x, this.player.y, '#EF4444', 20);
+        if (this.onMessage) this.onMessage('Fúria Sanguínea ativada! Poder devastador durante 15s.', 'rare');
+      } else if (item.elixirEffect === 'night_wind') {
+        this.addBuff({
+          id: `buff-speed-${Date.now()}`,
+          name: 'Vento Noturno',
+          icon: 'wind',
+          timer: item.duration || 15,
+          maxTimer: item.duration || 15,
+          type: 'speed',
+        });
+        this.addFloatingText(this.player.x, this.player.y - 0.5, '+40% VELOCIDADE', '#38BDF8');
+        this.createParticles(this.player.x, this.player.y, '#38BDF8', 20);
+        if (this.onMessage) this.onMessage('Vento Noturno ativado! Velocidade extrema durante 15s.', 'info');
+      }
+
+      this.recalculatePlayerStats();
+      return true;
+    }
+
+    if (item.type === 'scroll') {
+      soundManager.playScrollCast();
+      this.player.inventory[inventoryIndex] = null;
+
+      if (item.scrollEffect === 'reveal_map') {
+        for (let y = 0; y < this.dungeon.height; y++) {
+          for (let x = 0; x < this.dungeon.width; x++) {
+            if (this.dungeon.fog[y]?.[x] !== undefined) {
+              this.dungeon.fog[y][x] = 2; // FogState.VISIBLE
+            }
+          }
+        }
+        this.createParticles(this.player.x, this.player.y, '#38BDF8', 30);
+        this.triggerScreenShake(5);
+        this.addFloatingText(this.player.x, this.player.y - 0.5, 'Todo o Andar Revelado!', '#38BDF8');
+        if (this.onMessage) this.onMessage('A Revelação Arcana expôs todas as salas, tesouros e escadas da masmorra.', 'rare');
+      } else if (item.scrollEffect === 'teleport') {
+        const stairs = this.dungeon.stairsPos;
+        this.player.x = stairs.x + 0.5;
+        this.player.y = stairs.y + 0.5;
+        this.player.invulnerableTimer = 2.5;
+        updateFogOfWar(this.dungeon, this.player.x, this.player.y, this.player.stats.visionRadius);
+        this.createParticles(this.player.x, this.player.y, '#A855F7', 30);
+        this.triggerScreenShake(7);
+        this.addFloatingText(this.player.x, this.player.y - 0.5, 'Salto Espectral Realizado!', '#C084FC');
+        if (this.onMessage) this.onMessage('Você rompeu as dimensões e surgiu diante das escadas!', 'rare');
+      } else if (item.scrollEffect === 'nova_flames') {
+        const novaDmg = Math.round(120 + this.currentFloorNumber * 25);
+        let countHit = 0;
+        this.enemies.forEach((enemy) => {
+          const d = Math.hypot(enemy.x - this.player.x, enemy.y - this.player.y);
+          if (d <= 9.0) {
+            this.damageEnemy(enemy, novaDmg, true);
+            countHit++;
+          }
+        });
+        soundManager.playVoidPulse();
+        this.triggerScreenShake(14);
+        this.createParticles(this.player.x, this.player.y, '#F59E0B', 40);
+        this.createParticles(this.player.x, this.player.y, '#EF4444', 30);
+        this.addFloatingText(this.player.x, this.player.y - 0.5, `NOVA CÓSMICA (${countHit} Atingidos)`, '#F59E0B', true);
+        if (this.onMessage) this.onMessage(`A Nova Cósmica pulverizou os monstros (${novaDmg} de dano)!`, 'danger');
+      } else if (item.scrollEffect === 'suppress_hunger') {
+        this.dungeon.floorTimer = Math.max(0, this.dungeon.floorTimer - 60);
+        this.floorHungerFrozenTimer = 20;
+        this.dungeon.isHungerFrozen = true;
+        this.addBuff({
+          id: `buff-freeze-${Date.now()}`,
+          name: 'Calmaria Abissal',
+          icon: 'shield',
+          timer: 20,
+          maxTimer: 20,
+          type: 'hunger_freeze',
+        });
+        this.createParticles(this.player.x, this.player.y, '#06B6D4', 25);
+        this.addFloatingText(this.player.x, this.player.y - 0.5, '-60s Fome (Congelada 20s)', '#06B6D4');
+        if (this.onMessage) this.onMessage('A Calmaria Abissal retrocedeu o relógio da Fome e congelou o tempo!', 'rare');
+      } else if (item.scrollEffect === 'shield_barrier') {
+        this.player.shieldHp = Math.min(this.player.stats.maxHp * 2, this.player.shieldHp + 80);
+        this.player.maxShieldHp = Math.max(this.player.maxShieldHp, this.player.shieldHp);
+        soundManager.playAmuletShield();
+        this.createParticles(this.player.x, this.player.y, '#8B5CF6', 25);
+        this.addFloatingText(this.player.x, this.player.y - 0.5, '+80 Barreira Espiritual', '#A78BFA');
+        if (this.onMessage) this.onMessage('Égide Espiritual ativa! Barreira absorverá 80 de dano.', 'rare');
+      } else if (item.scrollEffect === 'transmute') {
+        const bonusRem = 15;
+        this.abyssRemnantsEarned += bonusRem;
+        Storage.addAbyssRemnants(bonusRem);
+        const rareLoot = generateItem(this.prng, this.currentFloorNumber, 'legendary');
+        this.groundItems.push({
+          id: `transmuted-${Date.now()}`,
+          item: rareLoot,
+          x: this.player.x + 0.8,
+          y: this.player.y,
+          bobTimer: 0,
+        });
+        this.createParticles(this.player.x, this.player.y, '#E11D48', 30);
+        this.addFloatingText(this.player.x, this.player.y - 0.5, '+15 Vestígios & Tesouro Lendário', '#E11D48');
+        if (this.onMessage) this.onMessage(`A Alquimia do Vazio materializou: ${rareLoot.name}!`, 'danger');
+      }
+
+      return true;
+    }
+
+    return false;
   }
 
   public equipItem(inventoryIndex: number, targetSlot?: keyof PlayerState['equipment']) {
     const item = this.player.inventory[inventoryIndex];
     if (!item) return;
+
+    if (item.type === 'potion' || item.type === 'scroll' || item.type === 'elixir') {
+      this.useItem(inventoryIndex);
+      return;
+    }
 
     soundManager.playButtonClick();
 
@@ -1060,9 +1331,6 @@ export class GameEngine {
       const old = this.player.equipment.amulet;
       this.player.equipment.amulet = item;
       this.player.inventory[inventoryIndex] = old;
-    } else if (item.type === 'potion') {
-      this.usePotion();
-      this.player.inventory[inventoryIndex] = null;
     }
 
     this.recalculatePlayerStats();

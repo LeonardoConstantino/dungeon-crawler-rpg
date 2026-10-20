@@ -1,11 +1,12 @@
 import React from 'react';
 import { soundManager } from '../game/audio';
-import { Play, Shield, Settings, Home, Save } from 'lucide-react';
+import { Play, Shield, Settings, Home, Save, Share2 } from 'lucide-react';
 
 interface PauseModalProps {
   onResume: () => void;
   onOpenInventory: () => void;
   onOpenSettings: () => void;
+  onOpenShare?: () => void;
   onSaveAndExit: () => void;
   floor: number;
   seed: string;
@@ -15,6 +16,7 @@ export const PauseModal: React.FC<PauseModalProps> = ({
   onResume,
   onOpenInventory,
   onOpenSettings,
+  onOpenShare,
   onSaveAndExit,
   floor,
   seed,
@@ -48,6 +50,19 @@ export const PauseModal: React.FC<PauseModalProps> = ({
             <Play className="w-4 h-4 fill-white" />
             <span>Retomar Descida</span>
           </button>
+
+          {onOpenShare && (
+            <button
+              onClick={() => {
+                soundManager.playButtonClick();
+                onOpenShare();
+              }}
+              className="w-full py-2.5 px-4 rounded-xl bg-amber-950/60 hover:bg-amber-900/80 text-amber-200 border border-amber-600/50 font-mono text-xs uppercase tracking-wider transition-colors flex items-center justify-center gap-2 shadow"
+            >
+              <Share2 className="w-4 h-4 text-amber-400" />
+              <span>Compartilhar Desafio / Seed</span>
+            </button>
+          )}
 
           <button
             onClick={() => {

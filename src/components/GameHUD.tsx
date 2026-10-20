@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { PlayerState, DungeonFloor, Room, FogState } from '../game/types';
-import { Copy, Pause, Shield, Zap, Heart, Map, Maximize2, Minimize2, Eye, EyeOff } from 'lucide-react';
+import { Copy, Pause, Shield, Zap, Heart, Map, Maximize2, Minimize2, Eye, EyeOff, Flame, Share2 } from 'lucide-react';
 import { soundManager } from '../game/audio';
 
 interface GameHUDProps {
@@ -33,6 +33,26 @@ export const GameHUD: React.FC<GameHUDProps> = ({
 
   const hpPct = Math.max(0, Math.min(100, (player.stats.hp / player.stats.maxHp) * 100));
   const xpPct = Math.max(0, Math.min(100, (player.stats.xp / player.stats.xpToNextLevel) * 100));
+
+  const formatTimer = (totalSecs: number) => {
+    const mins = Math.floor(totalSecs / 60);
+    const secs = Math.floor(totalSecs % 60);
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  const hungerStageNames = ['Sombra Calma', 'Agitação', 'Despertar', 'Fissura Crítica', 'Consumido!'];
+  const hungerStageName = hungerStageNames[Math.min(hungerStageNames.length - 1, dungeon.hungerLevel || 0)];
+  const hungerProgressPct = Math.min(100, Math.max(4, (((dungeon.floorTimer || 0) / 240) * 100)));
+  const hungerBarGradient =
+    dungeon.hungerLevel >= 4
+      ? 'from-red-600 via-rose-600 to-purple-600 animate-pulse'
+      : dungeon.hungerLevel >= 3
+      ? 'from-orange-500 via-rose-500 to-red-600'
+      : dungeon.hungerLevel >= 2
+      ? 'from-amber-500 to-orange-500'
+      : dungeon.hungerLevel >= 1
+      ? 'from-teal-500 to-amber-500'
+      : 'from-emerald-500 to-teal-400';
 
   const skillHotkeys = ['1', '2', '3', '4'];
 
@@ -89,10 +109,10 @@ export const GameHUD: React.FC<GameHUDProps> = ({
         paddingRight: 'max(0.5rem, env(safe-area-inset-right, 0px))',
       }}
     >
-      {/* Top Bar: HP/XP on left, Floor/Seed/Mochila/Pause on right */}
-      <div className="flex items-start justify-between w-full p-2 md:p-4">
-        {/* Top-Left: Player Vitality & Level */}
-        <div className="flex flex-col gap-1.5 pointer-events-auto max-w-[200px] sm:max-w-[260px] flex-1">
+      {/* Top Bar: HP/XP on left, Fome do Abismo in center, Floor/Seed/Mochila/Pause on right */}
+      <div className="flex items-start justify-between w-full p-2 md:p-4 gap-2">
+        {/* Top-Left: Player Vitality, Level & Active Buffs */}
+        <div className="flex flex-col gap-1 pointer-events-auto max-w-[180px] sm:max-w-[240px] flex-1">
           {/* Health Bar */}
           <div className="bg-[#0B0F17]/90 border border-slate-800 rounded-lg p-2 sm:p-2.5 backdrop-blur-sm shadow-xl">
             <div className="flex items-center justify-between text-[11px] sm:text-xs mb-1 font-mono">
@@ -104,7 +124,7 @@ export const GameHUD: React.FC<GameHUDProps> = ({
                 {player.stats.hp} / {player.stats.maxHp}
               </span>
             </div>
-            <div className="w-full bg-slate-950 h-2.5 sm:h-3 rounded overflow-hidden relative border border-slate-900">
+            <div className="w-full bg-slate-950 h-2 sm:h-2.5 rounded overflow-hidden relative border border-slate-900">
               <div
                 className="h-full bg-gradient-to-r from-rose-700 to-red-500 transition-all duration-200"
                 style={{ width: `${hpPct}%` }}
@@ -135,15 +155,83 @@ export const GameHUD: React.FC<GameHUDProps> = ({
             </div>
           </div>
 
+          {/* Active Buffs Strip (Scrolls & Elixirs active) */}
+          {player.activeBuffs && player.activeBuffs.length > 0 && (
+            <div className="flex flex-wrap gap-1 pt-0.5 pointer-events-none">
+              {player.activeBuffs.map((buff) => (
+                <span
+                  key={buff.id}
+                  className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-mono font-bold border backdrop-blur-sm shadow ${
+                    buff.type === 'fury'
+                      ? 'bg-rose-950/90 text-rose-300 border-rose-700'
+                      : buff.type === 'speed'
+                      ? 'bg-sky-950/90 text-sky-300 border-sky-700'
+                      : 'bg-cyan-950/90 text-cyan-300 border-cyan-700'
+                  }`}
+                >
+                  <span className="truncate max-w-[70px]">{buff.name}</span>
+                  <span className="tabular-nums text-white">{Math.ceil(buff.timer)}s</span>
+                </span>
+              ))}
+            </div>
+          )}
+
           {/* Quick Stats Strip (Desktop only) */}
-          <div className="hidden sm:flex items-center gap-3 text-xs text-slate-400 px-1 font-mono">
+          <div className="hidden sm:flex items-center gap-2 text-xs text-slate-400 px-1 font-mono">
             <span>ATQ: {player.stats.baseAttack}</span>
             <span aria-hidden="true">·</span>
             <span>DEF: {player.stats.baseDefense}</span>
             <span aria-hidden="true">·</span>
-            <span>CRIT: {Math.round(player.stats.critChance * 100)}%</span>
-            <span aria-hidden="true">·</span>
             <span className="text-emerald-400 font-semibold">FRASCOS: {player.potionsCount}</span>
+          </div>
+        </div>
+
+        {/* Top-Center: FOME DO ABISMO Floor Real-Time Gauge */}
+        <div className="flex flex-col items-center pointer-events-auto mx-1 max-w-[130px] sm:max-w-[200px] flex-1">
+          <div
+            className={`w-full bg-[#0B0F17]/95 border rounded-lg p-1.5 sm:p-2 backdrop-blur-sm shadow-xl flex flex-col items-center transition-all ${
+              dungeon.hungerLevel >= 4
+                ? 'border-purple-600 ring-1 ring-purple-500 animate-pulse'
+                : dungeon.hungerLevel >= 3
+                ? 'border-rose-600 ring-1 ring-rose-500/50'
+                : dungeon.hungerLevel >= 2
+                ? 'border-orange-600/70'
+                : 'border-slate-800'
+            }`}
+          >
+            <div className="flex items-center justify-between w-full text-[9px] sm:text-[11px] font-mono mb-1">
+              <span className="flex items-center gap-1 font-bold truncate">
+                <Flame
+                  className={`w-3 h-3 shrink-0 ${
+                    dungeon.hungerLevel >= 3
+                      ? 'text-rose-500 animate-bounce'
+                      : dungeon.hungerLevel >= 2
+                      ? 'text-orange-400'
+                      : 'text-amber-400'
+                  }`}
+                />
+                <span className="truncate">FOME: {hungerStageName}</span>
+              </span>
+              <span
+                className={`tabular-nums font-bold ${
+                  dungeon.isHungerFrozen
+                    ? 'text-cyan-400'
+                    : dungeon.hungerLevel >= 3
+                    ? 'text-rose-400'
+                    : 'text-slate-300'
+                }`}
+              >
+                {dungeon.isHungerFrozen ? '❄ CONGELADO' : formatTimer(dungeon.floorTimer || 0)}
+              </span>
+            </div>
+
+            {/* Gauge fill */}
+            <div className="w-full bg-slate-950 h-1.5 sm:h-2 rounded overflow-hidden border border-slate-900 relative">
+              <div
+                className={`h-full transition-all duration-300 bg-gradient-to-r ${hungerBarGradient}`}
+                style={{ width: `${hungerProgressPct}%` }}
+              />
+            </div>
           </div>
         </div>
 
@@ -151,19 +239,19 @@ export const GameHUD: React.FC<GameHUDProps> = ({
         <div className="flex flex-col items-end gap-2 pointer-events-auto">
           {/* Header Action Buttons */}
           <div className="flex items-center gap-1.5 sm:gap-2">
-            {/* Seed / Floor Indicator */}
+            {/* Social Share / Seed Indicator */}
             <button
               onClick={() => {
                 soundManager.playButtonClick();
                 onOpenSeedShare();
               }}
-              title="Compartilhar Seed"
-              className="flex items-center gap-1 bg-[#0B0F17]/90 hover:bg-slate-800 text-slate-300 border border-slate-800 rounded-lg px-2 sm:px-2.5 py-1.5 text-xs font-mono transition-colors shadow-lg"
+              title="Compartilhar Desafio & Seed"
+              className="flex items-center gap-1 bg-[#0B0F17]/90 hover:bg-slate-800 text-slate-300 border border-slate-800 rounded-lg px-2 sm:px-2.5 py-1.5 text-xs font-mono transition-colors shadow-lg active:scale-95"
             >
+              <Share2 className="w-3.5 h-3.5 text-amber-400 shrink-0" />
               <span className="text-amber-400 font-cinzel font-bold">A.{floor}</span>
               <span aria-hidden="true" className="text-slate-600 hidden sm:inline">|</span>
-              <span className="truncate max-w-[60px] sm:max-w-[120px] hidden sm:inline">{seed.slice(0, 8)}</span>
-              <Copy className="w-3 h-3 text-slate-400 shrink-0" />
+              <span className="truncate max-w-[60px] hidden sm:inline">{seed.slice(0, 6)}</span>
             </button>
 
             {/* Mochila (Backpack) - Available on Mobile & Desktop */}

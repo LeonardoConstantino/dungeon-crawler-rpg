@@ -67,8 +67,8 @@ export function generateItem(prng: PRNG, floor: number, guaranteedRarity?: ItemR
     rarity = 'rare';
   }
 
-  const types: ('weapon' | 'armor' | 'ring' | 'amulet' | 'potion')[] = [
-    'weapon', 'armor', 'ring', 'amulet', 'potion'
+  const types: ('weapon' | 'armor' | 'ring' | 'amulet' | 'potion' | 'scroll' | 'elixir')[] = [
+    'weapon', 'armor', 'ring', 'amulet', 'potion', 'scroll', 'elixir'
   ];
   const type = prng.pick(types);
 
@@ -86,6 +86,101 @@ export function generateItem(prng: PRNG, floor: number, guaranteedRarity?: ItemR
       value: 15,
       healAmount: 45,
       stats: {},
+    };
+  }
+
+  if (type === 'scroll') {
+    const scrollEffects: {
+      effect: import('./types').ScrollEffectType;
+      name: string;
+      desc: string;
+      rarity: ItemRarity;
+    }[] = [
+      {
+        effect: 'reveal_map',
+        name: 'Pergaminho da Revelação Arcana',
+        desc: 'Dissipa instantaneamente toda a névoa do andar e revela salas, escadas e altares.',
+        rarity: 'common',
+      },
+      {
+        effect: 'teleport',
+        name: 'Pergaminho do Salto Espectral',
+        desc: 'Teleporta você em segurança próximo às escadas da masmorra com 2s de invulnerabilidade.',
+        rarity: 'rare',
+      },
+      {
+        effect: 'nova_flames',
+        name: 'Pergaminho da Nova Cósmica',
+        desc: 'Detona uma onda estelar em 360° que causa dano colossal a todos os inimigos à vista.',
+        rarity: 'legendary',
+      },
+      {
+        effect: 'suppress_hunger',
+        name: 'Pergaminho da Calmaria Abissal',
+        desc: 'Retrocede 60s do relógio da Fome do Abismo e congela o tempo do andar por 20 segundos.',
+        rarity: 'rare',
+      },
+      {
+        effect: 'shield_barrier',
+        name: 'Pergaminho da Égide Espiritual',
+        desc: 'Ergue uma barreira espiritual impenetrável que absorve até 80 de dano.',
+        rarity: 'rare',
+      },
+      {
+        effect: 'transmute',
+        name: 'Pergaminho da Transmutação',
+        desc: 'Condensa o vácuo ao redor em +15 Vestígios do Abismo e forja um tesouro no chão.',
+        rarity: 'legendary',
+      },
+    ];
+
+    const chosen = prng.pick(scrollEffects);
+    return {
+      id: `scroll-${prng.rangeInt(10000, 99999)}`,
+      name: chosen.name,
+      type: 'scroll',
+      rarity: chosen.rarity,
+      description: chosen.desc,
+      icon: 'scroll',
+      scrollEffect: chosen.effect,
+      stats: {},
+      value: chosen.rarity === 'legendary' ? 50 : 25,
+    };
+  }
+
+  if (type === 'elixir') {
+    const elixirs: {
+      effect: import('./types').ElixirEffectType;
+      name: string;
+      desc: string;
+      rarity: ItemRarity;
+    }[] = [
+      {
+        effect: 'blood_fury',
+        name: 'Elixir da Fúria Sanguínea',
+        desc: '+50% de Ataque e +25% de Chance Crítica durante 15 segundos.',
+        rarity: 'rare',
+      },
+      {
+        effect: 'night_wind',
+        name: 'Elixir do Vento Noturno',
+        desc: '+40% de Velocidade de Movimento e esquiva aprimorada durante 15 segundos.',
+        rarity: 'common',
+      },
+    ];
+
+    const chosen = prng.pick(elixirs);
+    return {
+      id: `elixir-${prng.rangeInt(10000, 99999)}`,
+      name: chosen.name,
+      type: 'elixir',
+      rarity: chosen.rarity,
+      description: chosen.desc,
+      icon: 'elixir',
+      elixirEffect: chosen.effect,
+      duration: 15,
+      stats: {},
+      value: 30,
     };
   }
 
@@ -476,6 +571,8 @@ export function generateDungeonFloor(
       playerSpawn,
       ambientColor: getAmbientColor(floorNumber, hungerLevel),
       hungerLevel,
+      floorTimer: 0,
+      isHungerFrozen: false,
     },
     enemies,
     groundItems,
