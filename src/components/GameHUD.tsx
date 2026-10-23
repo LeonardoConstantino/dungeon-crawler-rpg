@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { PlayerState, DungeonFloor, Room, FogState } from '../game/types';
-import { Copy, Pause, Shield, Zap, Heart, Map, Maximize2, Minimize2, Eye, EyeOff, Flame, Share2 } from 'lucide-react';
+import { Copy, Pause, Shield, Zap, Heart, Map, Maximize2, Minimize2, Eye, EyeOff, Flame, Share2, Sparkles } from 'lucide-react';
 import { soundManager } from '../game/audio';
+import { ItemIcon } from './ItemIcon';
 
 interface GameHUDProps {
   player: PlayerState;
@@ -13,6 +14,8 @@ interface GameHUDProps {
   onOpenSeedShare: () => void;
   onTriggerSkill: (index: number) => void;
   onUsePotion: () => void;
+  onUseScroll?: () => void;
+  onUseElixir?: () => void;
   isMobile: boolean;
 }
 
@@ -26,6 +29,8 @@ export const GameHUD: React.FC<GameHUDProps> = ({
   onOpenSeedShare,
   onTriggerSkill,
   onUsePotion,
+  onUseScroll,
+  onUseElixir,
   isMobile,
 }) => {
   const [minimapZoomed, setMinimapZoomed] = useState(false);
@@ -103,6 +108,12 @@ export const GameHUD: React.FC<GameHUDProps> = ({
       : 'from-emerald-500 to-teal-400';
 
   const skillHotkeys = ['1', '2', '3', '4'];
+
+  const firstScroll = player.inventory.find((item) => item !== null && item.type === 'scroll');
+  const scrollCount = player.inventory.filter((item) => item !== null && item.type === 'scroll').length;
+
+  const firstElixir = player.inventory.find((item) => item !== null && item.type === 'elixir');
+  const elixirCount = player.inventory.filter((item) => item !== null && item.type === 'elixir').length;
 
   // Helper to render the SVG Minimap Content
   const renderMinimapSvg = () => (
@@ -309,10 +320,16 @@ export const GameHUD: React.FC<GameHUDProps> = ({
                 onOpenInventory();
               }}
               title="Inventário (Mochila)"
-              className="flex items-center gap-1.5 bg-[#0B0F17]/90 hover:bg-slate-800 text-slate-200 border border-slate-800 rounded-lg px-2.5 sm:px-3 py-1.5 text-xs font-mono transition-colors shadow-lg active:scale-95"
+              className="flex items-center gap-1.5 bg-[#0B0F17]/90 hover:bg-slate-800 text-slate-200 border border-slate-800 rounded-lg px-2.5 sm:px-3 py-1.5 text-xs font-mono transition-colors shadow-lg active:scale-95 relative"
             >
               <Shield className="w-3.5 h-3.5 text-slate-400" />
               <span className="hidden sm:inline">MOCHILA</span>
+              {player.inventory.some((i) => i?.isNew) && (
+                <span
+                  className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-cyan-400 border border-black shadow-[0_0_8px_#22d3ee] animate-pulse"
+                  title="Novo item na mochila!"
+                />
+              )}
             </button>
 
             {/* Mobile Minimap Toggle Button */}
@@ -444,9 +461,10 @@ export const GameHUD: React.FC<GameHUDProps> = ({
               );
             })}
 
-            {/* Quick Potion slot */}
+            {/* Consumables Quick Slots: Q (Poção), E (Pergaminho), R (Elixir) */}
             <div className="w-[1px] h-8 bg-slate-800 mx-1" />
 
+            {/* Quick Potion slot (Q) */}
             <button
               onClick={() => {
                 soundManager.playButtonClick();
@@ -456,18 +474,90 @@ export const GameHUD: React.FC<GameHUDProps> = ({
               className={`relative w-12 h-12 rounded-lg border flex flex-col items-center justify-center transition-all ${
                 player.potionsCount <= 0
                   ? 'bg-slate-900 border-slate-800 text-slate-600'
-                  : 'bg-rose-950/50 hover:bg-rose-900/60 border-rose-800/60 text-rose-300 active:scale-95'
+                  : 'bg-rose-950/50 hover:bg-rose-900/60 border-rose-800/60 text-rose-300 active:scale-95 shadow-md'
               }`}
-              title="Beber Frasco de Vida (Q)"
+              title="Beber Frasco de Sangue Frio (Tecla Q)"
             >
-              <Heart className="w-4 h-4 fill-rose-500/30 text-rose-400" />
+              <div className="w-6 h-6 flex items-center justify-center -mt-1">
+                <ItemIcon item="Frasco de Sangue Frio" size={24} />
+              </div>
               <span className="text-[10px] font-mono font-bold text-rose-300">x{player.potionsCount}</span>
-              <span className="absolute top-0.5 right-1 text-[9px] font-mono text-slate-400">Q</span>
+              <span className="absolute top-0.5 right-1 text-[9px] font-mono font-bold text-rose-300/80">Q</span>
+            </button>
+
+            {/* Quick Scroll slot (E) */}
+            <button
+              onClick={() => {
+                if (firstScroll && onUseScroll) {
+                  soundManager.playButtonClick();
+                  onUseScroll();
+                }
+              }}
+              disabled={!firstScroll}
+              className={`relative w-12 h-12 rounded-lg border flex flex-col items-center justify-center transition-all ${
+                !firstScroll
+                  ? 'bg-slate-900/60 border-slate-800 text-slate-600 cursor-not-allowed opacity-60'
+                  : 'bg-gradient-to-tr from-amber-950/70 via-amber-900/50 to-amber-800/40 hover:from-amber-900 hover:to-amber-700 border-amber-600/80 text-amber-200 active:scale-95 shadow-md ring-1 ring-amber-400/40'
+              }`}
+              title={
+                firstScroll
+                  ? `Ativar ${firstScroll.name} (Tecla E): ${firstScroll.description}`
+                  : 'Nenhum pergaminho na mochila (Tecla E)'
+              }
+            >
+              {firstScroll ? (
+                <div className="w-6 h-6 flex items-center justify-center -mt-1">
+                  <ItemIcon item={firstScroll} size={24} showRarityGlow />
+                </div>
+              ) : (
+                <Sparkles className="w-4 h-4 text-slate-600" />
+              )}
+              <span className="text-[9px] font-mono font-bold tracking-tight px-0.5 truncate w-full text-center">
+                {firstScroll ? (scrollCount > 1 ? `x${scrollCount}` : firstScroll.name.replace(/^Pergaminho\s+(da|do|de)?\s*/i, '').split(' ')[0]) : 'Vazio'}
+              </span>
+              <span className={`absolute top-0.5 right-1 text-[9px] font-mono font-bold ${firstScroll ? 'text-amber-300' : 'text-slate-600'}`}>
+                E
+              </span>
+            </button>
+
+            {/* Quick Elixir slot (R) */}
+            <button
+              onClick={() => {
+                if (firstElixir && onUseElixir) {
+                  soundManager.playButtonClick();
+                  onUseElixir();
+                }
+              }}
+              disabled={!firstElixir}
+              className={`relative w-12 h-12 rounded-lg border flex flex-col items-center justify-center transition-all ${
+                !firstElixir
+                  ? 'bg-slate-900/60 border-slate-800 text-slate-600 cursor-not-allowed opacity-60'
+                  : 'bg-gradient-to-tr from-purple-950/70 via-purple-900/50 to-indigo-800/40 hover:from-purple-900 hover:to-indigo-700 border-purple-500/80 text-purple-200 active:scale-95 shadow-md ring-1 ring-purple-400/40'
+              }`}
+              title={
+                firstElixir
+                  ? `Consumir ${firstElixir.name} (Tecla R): ${firstElixir.description}`
+                  : 'Nenhum elixir na mochila (Tecla R)'
+              }
+            >
+              {firstElixir ? (
+                <div className="w-6 h-6 flex items-center justify-center -mt-1">
+                  <ItemIcon item={firstElixir} size={24} showRarityGlow />
+                </div>
+              ) : (
+                <Zap className="w-4 h-4 text-slate-600" />
+              )}
+              <span className="text-[9px] font-mono font-bold tracking-tight px-0.5 truncate w-full text-center">
+                {firstElixir ? (elixirCount > 1 ? `x${elixirCount}` : firstElixir.name.replace(/^Elixir\s+(da|do|de)?\s*/i, '').split(' ')[0]) : 'Vazio'}
+              </span>
+              <span className={`absolute top-0.5 right-1 text-[9px] font-mono font-bold ${firstElixir ? 'text-purple-300' : 'text-slate-600'}`}>
+                R
+              </span>
             </button>
           </div>
 
           {/* Empty placeholder for balance when desktop */}
-          <div className="w-28 md:w-32" />
+          <div className="w-28 md:w-32 flex-shrink-0" />
         </div>
       )}
     </div>

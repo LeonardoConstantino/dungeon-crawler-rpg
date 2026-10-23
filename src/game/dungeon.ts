@@ -145,6 +145,7 @@ export function generateItem(prng: PRNG, floor: number, guaranteedRarity?: ItemR
       scrollEffect: chosen.effect,
       stats: {},
       value: chosen.rarity === 'legendary' ? 50 : 25,
+      isNew: true,
     };
   }
 
@@ -181,6 +182,7 @@ export function generateItem(prng: PRNG, floor: number, guaranteedRarity?: ItemR
       duration: 15,
       stats: {},
       value: 30,
+      isNew: true,
     };
   }
 
@@ -226,6 +228,7 @@ export function generateItem(prng: PRNG, floor: number, guaranteedRarity?: ItemR
     icon,
     stats,
     value: Math.round(20 * rarityMult * floorMult),
+    isNew: true,
   };
 }
 

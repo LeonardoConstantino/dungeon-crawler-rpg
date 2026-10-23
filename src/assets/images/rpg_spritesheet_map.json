@@ -1,0 +1,419 @@
+{
+  "spritesheet": {
+    "file": "rpg_inventory.png",
+    "width": 768,
+    "height": 896,
+    "cell_size": 128,
+    "cols": 6,
+    "rows": 7,
+    "total_cells": 42,
+    "total_items": 39,
+    "empty_cells": 3,
+    "empty_positions": [
+      { "col": 3, "row": 6 },
+      { "col": 4, "row": 6 },
+      { "col": 5, "row": 6 }
+    ]
+  },
+  "items": [
+    {
+      "id": "weapon_gladio_andarilho",
+      "index": 0,
+      "name": "Gládio do Andarilho",
+      "name_en": "Worn Gladius",
+      "category": "weapon",
+      "subcategory": "short_sword",
+      "grid": { "col": 0, "row": 0 },
+      "frame": { "x": 0, "y": 0, "w": 128, "h": 128 }
+    },
+    {
+      "id": "weapon_lamina_ferro_frio",
+      "index": 1,
+      "name": "Lâmina de Ferro Frio",
+      "name_en": "Frost Iron Blade",
+      "category": "weapon",
+      "subcategory": "long_sword",
+      "grid": { "col": 1, "row": 0 },
+      "frame": { "x": 128, "y": 0, "w": 128, "h": 128 }
+    },
+    {
+      "id": "weapon_espada_basalto",
+      "index": 2,
+      "name": "Espada de Basalto",
+      "name_en": "Basalt Sword",
+      "category": "weapon",
+      "subcategory": "great_sword",
+      "grid": { "col": 2, "row": 0 },
+      "frame": { "x": 256, "y": 0, "w": 128, "h": 128 }
+    },
+    {
+      "id": "weapon_gladio_espectral",
+      "index": 3,
+      "name": "Gládio Espectral",
+      "name_en": "Spectral Gladius",
+      "category": "weapon",
+      "subcategory": "short_sword",
+      "grid": { "col": 3, "row": 0 },
+      "frame": { "x": 384, "y": 0, "w": 128, "h": 128 }
+    },
+    {
+      "id": "weapon_cutelo_executor",
+      "index": 4,
+      "name": "Cutelo do Executor",
+      "name_en": "Executioner's Cleaver",
+      "category": "weapon",
+      "subcategory": "cleaver",
+      "grid": { "col": 4, "row": 0 },
+      "frame": { "x": 512, "y": 0, "w": 128, "h": 128 }
+    },
+    {
+      "id": "weapon_adaga_fenda",
+      "index": 5,
+      "name": "Adaga da Fenda",
+      "name_en": "Rift Dagger",
+      "category": "weapon",
+      "subcategory": "dagger",
+      "grid": { "col": 5, "row": 0 },
+      "frame": { "x": 640, "y": 0, "w": 128, "h": 128 }
+    },
+    {
+      "id": "weapon_espada_longa_abismo",
+      "index": 6,
+      "name": "Espada Longa do Abismo",
+      "name_en": "Abyss Longsword",
+      "category": "weapon",
+      "subcategory": "two_handed_sword",
+      "grid": { "col": 0, "row": 1 },
+      "frame": { "x": 0, "y": 128, "w": 128, "h": 128 }
+    },
+    {
+      "id": "weapon_foice_memoria",
+      "index": 7,
+      "name": "Foice da Memória",
+      "name_en": "Memory Scythe",
+      "category": "weapon",
+      "subcategory": "scythe",
+      "grid": { "col": 1, "row": 1 },
+      "frame": { "x": 128, "y": 128, "w": 128, "h": 128 }
+    },
+    {
+      "id": "weapon_lanca_runica",
+      "index": 8,
+      "name": "Lança Rúnica",
+      "name_en": "Runic Lance",
+      "category": "weapon",
+      "subcategory": "spear",
+      "grid": { "col": 2, "row": 1 },
+      "frame": { "x": 256, "y": 128, "w": 128, "h": 128 }
+    },
+    {
+      "id": "weapon_lamina_esquecimento",
+      "index": 9,
+      "name": "Lâmina do Esquecimento",
+      "name_en": "Oblivion Blade",
+      "category": "weapon",
+      "subcategory": "special_sword",
+      "grid": { "col": 3, "row": 1 },
+      "frame": { "x": 384, "y": 128, "w": 128, "h": 128 }
+    },
+    {
+      "id": "armor_capa_esfarrapada",
+      "index": 10,
+      "name": "Capa Esfarrapada",
+      "name_en": "Tattered Cloak",
+      "category": "armor",
+      "subcategory": "cloak",
+      "grid": { "col": 4, "row": 1 },
+      "frame": { "x": 512, "y": 128, "w": 128, "h": 128 }
+    },
+    {
+      "id": "armor_gibao_couro_escuro",
+      "index": 11,
+      "name": "Gibão de Couro Escuro",
+      "name_en": "Dark Leather Jerkin",
+      "category": "armor",
+      "subcategory": "leather",
+      "grid": { "col": 5, "row": 1 },
+      "frame": { "x": 640, "y": 128, "w": 128, "h": 128 }
+    },
+    {
+      "id": "armor_manto_cinzas",
+      "index": 12,
+      "name": "Manto de Cinzas",
+      "name_en": "Ash Mantle",
+      "category": "armor",
+      "subcategory": "mantle",
+      "grid": { "col": 0, "row": 2 },
+      "frame": { "x": 0, "y": 256, "w": 128, "h": 128 }
+    },
+    {
+      "id": "armor_cota_malha_fria",
+      "index": 13,
+      "name": "Cota de Malha Fria",
+      "name_en": "Frost Chain Mail",
+      "category": "armor",
+      "subcategory": "chainmail",
+      "grid": { "col": 1, "row": 2 },
+      "frame": { "x": 128, "y": 256, "w": 128, "h": 128 }
+    },
+    {
+      "id": "armor_armadura_basalto",
+      "index": 14,
+      "name": "Armadura de Basalto",
+      "name_en": "Basalt Plate Armor",
+      "category": "armor",
+      "subcategory": "plate",
+      "grid": { "col": 2, "row": 2 },
+      "frame": { "x": 256, "y": 256, "w": 128, "h": 128 }
+    },
+    {
+      "id": "armor_tunica_espectral",
+      "index": 15,
+      "name": "Túnica Espectral",
+      "name_en": "Spectral Tunic",
+      "category": "armor",
+      "subcategory": "tunic",
+      "grid": { "col": 3, "row": 2 },
+      "frame": { "x": 384, "y": 256, "w": 128, "h": 128 }
+    },
+    {
+      "id": "armor_peitoral_ruina",
+      "index": 16,
+      "name": "Peitoral da Ruína",
+      "name_en": "Ruin Breastplate",
+      "category": "armor",
+      "subcategory": "plate",
+      "grid": { "col": 4, "row": 2 },
+      "frame": { "x": 512, "y": 256, "w": 128, "h": 128 }
+    },
+    {
+      "id": "armor_pedra_negra",
+      "index": 17,
+      "name": "Armadura de Pedra Negra",
+      "name_en": "Black Stone Armor",
+      "category": "armor",
+      "subcategory": "plate",
+      "grid": { "col": 5, "row": 2 },
+      "frame": { "x": 640, "y": 256, "w": 128, "h": 128 }
+    },
+    {
+      "id": "armor_veste_andarilho",
+      "index": 18,
+      "name": "Veste do Andarilho",
+      "name_en": "Wanderer Vest",
+      "category": "armor",
+      "subcategory": "vest",
+      "grid": { "col": 0, "row": 3 },
+      "frame": { "x": 0, "y": 384, "w": 128, "h": 128 }
+    },
+    {
+      "id": "ring_pirita",
+      "index": 19,
+      "name": "Anel de Pirita",
+      "name_en": "Pyrite Ring",
+      "category": "ring",
+      "subcategory": "ring",
+      "grid": { "col": 1, "row": 3 },
+      "frame": { "x": 128, "y": 384, "w": 128, "h": 128 }
+    },
+    {
+      "id": "ring_elos_sangue",
+      "index": 20,
+      "name": "Elos de Sangue",
+      "name_en": "Blood Links",
+      "category": "ring",
+      "subcategory": "ring",
+      "grid": { "col": 2, "row": 3 },
+      "frame": { "x": 256, "y": 384, "w": 128, "h": 128 }
+    },
+    {
+      "id": "ring_banda_obsidiana",
+      "index": 21,
+      "name": "Banda de Obsidiana",
+      "name_en": "Obsidian Band",
+      "category": "ring",
+      "subcategory": "ring",
+      "grid": { "col": 3, "row": 3 },
+      "frame": { "x": 384, "y": 384, "w": 128, "h": 128 }
+    },
+    {
+      "id": "ring_selo_abismo",
+      "index": 22,
+      "name": "Selo do Abismo",
+      "name_en": "Abyss Seal",
+      "category": "ring",
+      "subcategory": "ring",
+      "grid": { "col": 4, "row": 3 },
+      "frame": { "x": 512, "y": 384, "w": 128, "h": 128 }
+    },
+    {
+      "id": "ring_espectral",
+      "index": 23,
+      "name": "Anel Espectral",
+      "name_en": "Spectral Ring",
+      "category": "ring",
+      "subcategory": "ring",
+      "grid": { "col": 5, "row": 3 },
+      "frame": { "x": 640, "y": 384, "w": 128, "h": 128 }
+    },
+    {
+      "id": "ring_gema_fome",
+      "index": 24,
+      "name": "Gema da Fome",
+      "name_en": "Hunger Gem",
+      "category": "ring",
+      "subcategory": "ring",
+      "grid": { "col": 0, "row": 4 },
+      "frame": { "x": 0, "y": 512, "w": 128, "h": 128 }
+    },
+    {
+      "id": "amulet_ardosia",
+      "index": 25,
+      "name": "Amuleto de Ardósia",
+      "name_en": "Slate Amulet",
+      "category": "amulet",
+      "subcategory": "pendant",
+      "grid": { "col": 1, "row": 4 },
+      "frame": { "x": 128, "y": 512, "w": 128, "h": 128 }
+    },
+    {
+      "id": "amulet_talismo_alma",
+      "index": 26,
+      "name": "Talismã da Alma",
+      "name_en": "Soul Talisman",
+      "category": "amulet",
+      "subcategory": "medallion",
+      "grid": { "col": 2, "row": 4 },
+      "frame": { "x": 256, "y": 512, "w": 128, "h": 128 }
+    },
+    {
+      "id": "amulet_pingente_profundezas",
+      "index": 27,
+      "name": "Pingente das Profundezas",
+      "name_en": "Deep Pendant",
+      "category": "amulet",
+      "subcategory": "pendant",
+      "grid": { "col": 3, "row": 4 },
+      "frame": { "x": 384, "y": 512, "w": 128, "h": 128 }
+    },
+    {
+      "id": "amulet_olho_vazio",
+      "index": 28,
+      "name": "Olho do Vazio",
+      "name_en": "Eye of the Void",
+      "category": "amulet",
+      "subcategory": "talisman",
+      "grid": { "col": 4, "row": 4 },
+      "frame": { "x": 512, "y": 512, "w": 128, "h": 128 }
+    },
+    {
+      "id": "amulet_coracao_runico",
+      "index": 29,
+      "name": "Coração Rúnico",
+      "name_en": "Runic Heart",
+      "category": "amulet",
+      "subcategory": "talisman",
+      "grid": { "col": 5, "row": 4 },
+      "frame": { "x": 640, "y": 512, "w": 128, "h": 128 }
+    },
+    {
+      "id": "potion_frasco_sangue_frio",
+      "index": 30,
+      "name": "Frasco de Sangue Frio",
+      "name_en": "Cold Blood Flask",
+      "category": "consumable",
+      "subcategory": "potion",
+      "effect": "heal_45pct",
+      "grid": { "col": 0, "row": 5 },
+      "frame": { "x": 0, "y": 640, "w": 128, "h": 128 }
+    },
+    {
+      "id": "scroll_revelacao_arcana",
+      "index": 31,
+      "name": "Pergaminho da Revelação Arcana",
+      "name_en": "Arcane Revelation Scroll",
+      "category": "consumable",
+      "subcategory": "scroll",
+      "effect": "reveal_floor_map",
+      "grid": { "col": 1, "row": 5 },
+      "frame": { "x": 128, "y": 640, "w": 128, "h": 128 }
+    },
+    {
+      "id": "scroll_salto_espectral",
+      "index": 32,
+      "name": "Pergaminho do Salto Espectral",
+      "name_en": "Spectral Leap Scroll",
+      "category": "consumable",
+      "subcategory": "scroll",
+      "effect": "teleport",
+      "grid": { "col": 2, "row": 5 },
+      "frame": { "x": 256, "y": 640, "w": 128, "h": 128 }
+    },
+    {
+      "id": "scroll_nova_cosmica",
+      "index": 33,
+      "name": "Pergaminho da Nova Cósmica",
+      "name_en": "Cosmic Nova Scroll",
+      "category": "consumable",
+      "subcategory": "scroll",
+      "effect": "aoe_explosion_360",
+      "grid": { "col": 3, "row": 5 },
+      "frame": { "x": 384, "y": 640, "w": 128, "h": 128 }
+    },
+    {
+      "id": "scroll_calmaria_abissal",
+      "index": 34,
+      "name": "Pergaminho da Calmaria Abissal",
+      "name_en": "Abyssal Calm Scroll",
+      "category": "consumable",
+      "subcategory": "scroll",
+      "effect": "freeze_enemies_rewind_abyss",
+      "grid": { "col": 4, "row": 5 },
+      "frame": { "x": 512, "y": 640, "w": 128, "h": 128 }
+    },
+    {
+      "id": "scroll_egide_espiritual",
+      "index": 35,
+      "name": "Pergaminho da Égide Espiritual",
+      "name_en": "Spirit Aegis Scroll",
+      "category": "consumable",
+      "subcategory": "scroll",
+      "effect": "shield_80hp",
+      "grid": { "col": 5, "row": 5 },
+      "frame": { "x": 640, "y": 640, "w": 128, "h": 128 }
+    },
+    {
+      "id": "scroll_transmutacao",
+      "index": 36,
+      "name": "Pergaminho da Transmutação",
+      "name_en": "Transmutation Scroll",
+      "category": "consumable",
+      "subcategory": "scroll",
+      "effect": "create_vestiges_treasure",
+      "grid": { "col": 0, "row": 6 },
+      "frame": { "x": 0, "y": 768, "w": 128, "h": 128 }
+    },
+    {
+      "id": "elixir_furia_sanguinea",
+      "index": 37,
+      "name": "Elixir da Fúria Sanguínea",
+      "name_en": "Bloodrage Elixir",
+      "category": "consumable",
+      "subcategory": "elixir",
+      "effect": "attack_plus50_crit_plus25_15s",
+      "grid": { "col": 1, "row": 6 },
+      "frame": { "x": 128, "y": 768, "w": 128, "h": 128 }
+    },
+    {
+      "id": "elixir_vento_noturno",
+      "index": 38,
+      "name": "Elixir do Vento Noturno",
+      "name_en": "Night Wind Elixir",
+      "category": "consumable",
+      "subcategory": "elixir",
+      "effect": "speed_plus40_dodge_plus40_15s",
+      "grid": { "col": 2, "row": 6 },
+      "frame": { "x": 256, "y": 768, "w": 128, "h": 128 }
+    }
+  ]
+}

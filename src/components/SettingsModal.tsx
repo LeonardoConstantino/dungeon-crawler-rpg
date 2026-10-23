@@ -345,6 +345,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose, onSetting
               <div><strong className="text-slate-200">Espaço / Clique:</strong> Atacar</div>
               <div><strong className="text-slate-200">1, 2, 3, 4:</strong> Habilidades</div>
               <div><strong className="text-slate-200">Q:</strong> Beber Poção</div>
+              <div><strong className="text-slate-200">E:</strong> Ativar Pergaminho</div>
+              <div><strong className="text-slate-200">R:</strong> Consumir Elixir</div>
               <div><strong className="text-slate-200">I / B:</strong> Mochila</div>
               <div><strong className="text-slate-200">ESC:</strong> Pausar Jogo</div>
             </div>

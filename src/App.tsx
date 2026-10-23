@@ -234,6 +234,14 @@ export default function App() {
         engineRef.current?.usePotion();
       }
 
+      if (e.code === 'KeyE') {
+        engineRef.current?.useFirstScroll();
+      }
+
+      if (e.code === 'KeyR') {
+        engineRef.current?.useFirstElixir();
+      }
+
       if (e.code === 'KeyI' || e.code === 'KeyB') {
         setIsInventoryOpen((prev) => !prev);
       }
@@ -319,6 +327,8 @@ export default function App() {
             onOpenSeedShare={() => setIsSeedShareOpen(true)}
             onTriggerSkill={(idx) => engine.triggerSkill(idx)}
             onUsePotion={() => engine.usePotion()}
+            onUseScroll={() => engine.useFirstScroll()}
+            onUseElixir={() => engine.useFirstElixir()}
             isMobile={isMobile}
           />
 
@@ -360,7 +370,10 @@ export default function App() {
       {isInventoryOpen && engine && (
         <InventoryModal
           player={engine.player}
-          onClose={() => setIsInventoryOpen(false)}
+          onClose={() => {
+            if (engine) engine.setMoveInput(0, 0);
+            setIsInventoryOpen(false);
+          }}
           onEquip={(idx, targetSlot) => engine.equipItem(idx, targetSlot)}
           onUnequip={(slot) => engine.unequipItem(slot)}
           onDiscard={(idx) => engine.discardItem(idx)}

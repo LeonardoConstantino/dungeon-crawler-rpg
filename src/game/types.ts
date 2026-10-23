@@ -41,6 +41,7 @@ export interface Item {
   elixirEffect?: ElixirEffectType;
   duration?: number;
   value: number;
+  isNew?: boolean;
 }
 
 export interface Skill {
@@ -144,6 +145,8 @@ export interface GroundItem {
   x: number;
   y: number;
   bobTimer: number;
+  pickupDelay?: number;
+  requireWalkAway?: boolean;
 }
 
 export interface SoulRemnant {

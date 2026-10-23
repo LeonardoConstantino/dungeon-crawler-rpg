@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { Equipment, Item, PlayerState } from '../game/types';
-import { X, Shield, Sword, Heart, Sparkles, Trash2, ArrowUp, ArrowDown, Minus, Check, AlertTriangle, Zap } from 'lucide-react';
+import { X, Shield, Sword, Heart, Sparkles, Trash2, ArrowUp, ArrowDown, Minus, Check, AlertTriangle, Zap, User } from 'lucide-react';
 import { soundManager } from '../game/audio';
+import inventoryCharacterImg from '../assets/images/inventory character.png';
+import { ItemIcon } from './ItemIcon';
 
 interface InventoryModalProps {
   player: PlayerState;
@@ -25,6 +27,7 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
   const [ringCompareSlot, setRingCompareSlot] = useState<'ring1' | 'ring2'>('ring1');
   const [confirmingDiscard, setConfirmingDiscard] = useState(false);
   const [mobileTab, setMobileTab] = useState<'inventory' | 'equipment'>('inventory');
+  const [inspectedIds, setInspectedIds] = useState<Set<string>>(() => new Set());
 
   const selectedItem: Item | null =
     selectedIndex !== null
@@ -34,6 +37,9 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
       : null;
 
   const isInspectingInventory = selectedIndex !== null;
+  const newItemsCount = player.inventory.filter(
+    (i) => i && i.isNew && !inspectedIds.has(i.id)
+  ).length;
 
   // Determine which currently equipped item to compare against
   let equippedComparisonItem: Item | null = null;
@@ -108,6 +114,75 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
     );
   };
 
+  const renderEquipSlotCard = (
+    slotKey: keyof Equipment,
+    slotLabel: string,
+    slotItem: Item | null,
+    Icon: React.ComponentType<{ className?: string }>
+  ) => {
+    const isSelected = selectedEquipSlot === slotKey;
+    const isMatchingBackpackItem =
+      selectedItem &&
+      isInspectingInventory &&
+      ((slotKey === 'weapon' && selectedItem.type === 'weapon') ||
+        (slotKey === 'armor' && selectedItem.type === 'armor') ||
+        (slotKey === 'amulet' && selectedItem.type === 'amulet') ||
+        ((slotKey === 'ring1' || slotKey === 'ring2') && selectedItem.type === 'ring'));
+
+    return (
+      <div
+        key={slotKey}
+        onClick={() => {
+          soundManager.playButtonClick();
+          setSelectedIndex(null);
+          setSelectedEquipSlot(slotKey);
+          setConfirmingDiscard(false);
+        }}
+        className={`flex flex-col items-center justify-center p-1.5 sm:p-2 rounded-xl border text-center transition-all cursor-pointer relative ${
+          isSelected
+            ? 'border-sky-400 bg-sky-950/60 ring-2 ring-sky-400 shadow-[0_0_12px_rgba(56,189,248,0.4)]'
+            : isMatchingBackpackItem
+            ? 'border-emerald-500/80 bg-emerald-950/40 ring-1 ring-emerald-500/60 animate-pulse'
+            : slotItem
+            ? `${getRarityColor(slotItem.rarity)} hover:border-slate-500 hover:bg-slate-900/60`
+            : 'border-dashed border-slate-800 bg-slate-950/40 text-slate-600 hover:border-slate-700'
+        }`}
+        title={slotItem ? `${slotLabel}: ${slotItem.name}` : `${slotLabel}: Vazio`}
+      >
+        <div
+          className={`w-13 h-13 sm:w-15 sm:h-15 rounded-xl flex items-center justify-center shrink-0 border overflow-hidden ${
+            slotItem
+              ? 'bg-slate-800/90 text-slate-200 border-slate-700 shadow-inner'
+              : 'bg-slate-900/60 text-slate-600 border-slate-800/80'
+          }`}
+          style={{ minWidth: '50px', minHeight: '50px' }}
+        >
+          {slotItem ? (
+            <ItemIcon item={slotItem} size={50} showRarityGlow />
+          ) : (
+            <Icon className="w-5 h-5 sm:w-6 sm:h-6 text-slate-600" />
+          )}
+        </div>
+        <span className="text-[8.5px] sm:text-[9.5px] font-mono uppercase tracking-tight text-slate-400 mt-1 truncate max-w-full">
+          {slotLabel}
+        </span>
+        <span
+          className={`text-[9.5px] sm:text-[10.5px] font-bold truncate max-w-full leading-tight px-0.5 ${
+            slotItem
+              ? slotItem.rarity === 'legendary'
+                ? 'text-amber-400'
+                : slotItem.rarity === 'rare'
+                ? 'text-sky-300'
+                : 'text-slate-200'
+              : 'text-slate-600 italic'
+          }`}
+        >
+          {slotItem ? slotItem.name.replace(/^antigo\s+/i, '').trim() : 'Vazio'}
+        </span>
+      </div>
+    );
+  };
+
   return (
     <div
       className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 select-none animate-in fade-in duration-200"
@@ -170,149 +245,182 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
           </button>
         </div>
 
-        {/* Body Grid: Equipment (Col 1) | Inventory Grid (Col 2) | Item Inspection & Comparison (Col 3) */}
+        {/* Body Grid: Equipment Paperdoll (Col 1) | Inventory Grid (Col 2) | Item Inspection & Comparison (Col 3) */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 sm:gap-4 p-3 sm:p-4 overflow-y-auto">
-          {/* Column 1: Equipped Slots */}
+          {/* Column 1: Equipped Slots & Character Paperdoll (GDD 8.4) */}
           <div
-            className={`lg:col-span-4 bg-[#111622] border border-slate-800/80 rounded-xl p-3.5 flex-col gap-2.5 ${
+            className={`lg:col-span-4 bg-[#111622] border border-slate-800/80 rounded-xl p-3 sm:p-3.5 flex flex-col gap-2.5 ${
               mobileTab === 'equipment' ? 'flex' : 'hidden lg:flex'
             }`}
           >
-            <h3 className="text-xs font-mono font-semibold uppercase tracking-wider text-slate-400 mb-0.5">
-              Corpo do Descendente
-            </h3>
+            {/* Header: Title & Level */}
+            <div className="flex items-center justify-between pb-1.5 border-b border-slate-800/80">
+              <div className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse shadow-[0_0_6px_#38bdf8]" />
+                <h3 className="text-xs font-cinzel font-bold tracking-wider text-slate-200 uppercase">
+                  O Descendente
+                </h3>
+              </div>
+              <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-sky-950/80 text-sky-300 border border-sky-800/60 font-semibold">
+                NÍVEL {player.stats.level}
+              </span>
+            </div>
 
-            {/* Equipment Slots */}
-            {(
-              [
-                { key: 'weapon', label: 'Arma', item: player.equipment.weapon, icon: Sword },
-                { key: 'armor', label: 'Armadura', item: player.equipment.armor, icon: Shield },
-                { key: 'ring1', label: 'Anel 1 (Primário)', item: player.equipment.ring1, icon: Sparkles },
-                { key: 'ring2', label: 'Anel 2 (Secundário)', item: player.equipment.ring2, icon: Sparkles },
-                { key: 'amulet', label: 'Amuleto', item: player.equipment.amulet, icon: Heart },
-              ] as const
-            ).map((slot) => {
-              const Icon = slot.icon;
-              const isSelected = selectedEquipSlot === slot.key;
+            {/* Character Paperdoll Presentation (GDD 8.4) */}
+            <div className="relative rounded-xl border border-slate-800/90 bg-gradient-to-b from-[#090D15] via-[#0D121C] to-[#080B12] p-2 sm:p-2.5 flex flex-col shadow-inner overflow-hidden group">
+              {/* Subtle Atmospheric Backdrop Glow */}
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(56,189,248,0.08)_0%,transparent_75%)] pointer-events-none" />
 
-              return (
-                <div
-                  key={slot.key}
-                  onClick={() => {
-                    soundManager.playButtonClick();
-                    setSelectedIndex(null);
-                    setSelectedEquipSlot(slot.key);
-                    setConfirmingDiscard(false);
-                  }}
-                  className={`flex items-center justify-between p-2 rounded-lg border transition-all cursor-pointer ${
-                    isSelected
-                      ? 'border-sky-500 bg-sky-950/30'
-                      : slot.item
-                      ? 'border-slate-700 bg-slate-900/60 hover:border-slate-600'
-                      : 'border-dashed border-slate-800 bg-slate-950/40 text-slate-600'
-                  }`}
-                >
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <div className="w-7 h-7 rounded bg-slate-800 flex items-center justify-center text-slate-400 shrink-0">
-                      <Icon className="w-3.5 h-3.5" />
-                    </div>
-                    <div className="min-w-0">
-                      <div className="text-[10px] font-mono uppercase text-slate-400 truncate">{slot.label}</div>
-                      <div className="text-xs font-semibold text-slate-200 truncate">
-                        {slot.item ? slot.item.name : 'Vazio'}
-                      </div>
-                    </div>
+              {/* Flanked Paperdoll Grid: Left Slots | Hero Figure | Right Slots */}
+              <div className="relative z-10 grid grid-cols-12 gap-1.5 sm:gap-2 items-center">
+                {/* Left Slots: Weapon & Ring 1 */}
+                <div className="col-span-3 flex flex-col justify-around gap-2 h-full">
+                  {renderEquipSlotCard('weapon', 'Arma', player.equipment.weapon, Sword)}
+                  {renderEquipSlotCard('ring1', 'Anel 1', player.equipment.ring1, Sparkles)}
+                </div>
+
+                {/* Center: Character Art (from src/assets/images/inventory character.png) */}
+                <div className="col-span-6 flex flex-col items-center justify-center py-0.5 relative">
+                  <div className="relative flex items-center justify-center">
+                    <img
+                      src={inventoryCharacterImg}
+                      alt="O Descendente - Personagem Principal"
+                      className="h-44 sm:h-48 md:h-52 w-auto object-contain image-pixelated drop-shadow-[0_8px_18px_rgba(0,0,0,0.85)] transition-transform duration-300 group-hover:scale-102 select-none"
+                      draggable={false}
+                    />
                   </div>
 
-                  {slot.item && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        onUnequip(slot.key);
-                      }}
-                      className="text-[10px] text-slate-400 hover:text-rose-400 px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 font-mono shrink-0 ml-2"
-                    >
-                      Remover
-                    </button>
-                  )}
+                  {/* Character Vitality & Protection Mini-Tag */}
+                  <div className="mt-1 flex items-center gap-1.5 text-[10px] font-mono bg-slate-950/80 px-2 py-0.5 rounded-full border border-slate-800/80 shadow">
+                    <span className="text-rose-400 font-bold flex items-center gap-0.5">
+                      <Heart className="w-2.5 h-2.5 fill-rose-500/30 text-rose-500" />
+                      {player.stats.hp}/{player.stats.maxHp}
+                    </span>
+                    {player.shieldHp > 0 && (
+                      <span className="text-purple-300 font-semibold flex items-center gap-0.5">
+                        <Shield className="w-2.5 h-2.5 text-purple-400" />
+                        +{player.shieldHp}
+                      </span>
+                    )}
+                  </div>
                 </div>
-              );
-            })}
 
-            {/* Quick Stat Total Summary */}
-            <div className="mt-auto pt-2.5 border-t border-slate-800/80 text-xs font-mono text-slate-400 space-y-1">
+                {/* Right Slots: Armor, Amulet & Ring 2 */}
+                <div className="col-span-3 flex flex-col justify-around gap-2 h-full">
+                  {renderEquipSlotCard('armor', 'Armadura', player.equipment.armor, Shield)}
+                  {renderEquipSlotCard('amulet', 'Amuleto', player.equipment.amulet, Heart)}
+                  {renderEquipSlotCard('ring2', 'Anel 2', player.equipment.ring2, Sparkles)}
+                </div>
+              </div>
+            </div>
+
+            {/* Quick Combat Stat Summary Grid */}
+            <div className="mt-auto pt-2 border-t border-slate-800/80 text-[10px] sm:text-[11px] font-mono text-slate-400 grid grid-cols-2 gap-x-3 gap-y-1 bg-slate-950/50 p-2 rounded-lg border border-slate-800/50">
               <div className="flex justify-between">
-                <span>Ataque Total:</span>
-                <span className="text-slate-200 font-bold">{player.stats.baseAttack}</span>
+                <span>Ataque:</span>
+                <span className="text-slate-100 font-bold">{player.stats.baseAttack}</span>
               </div>
               <div className="flex justify-between">
-                <span>Defesa Total:</span>
-                <span className="text-slate-200 font-bold">{player.stats.baseDefense}</span>
+                <span>Defesa:</span>
+                <span className="text-slate-100 font-bold">{player.stats.baseDefense}</span>
               </div>
               <div className="flex justify-between">
-                <span>Vida Máxima:</span>
-                <span className="text-slate-200 font-bold">{player.stats.maxHp}</span>
+                <span>Vida Máx:</span>
+                <span className="text-slate-100 font-bold">{player.stats.maxHp}</span>
               </div>
               <div className="flex justify-between">
-                <span>Chance Crítica:</span>
-                <span className="text-slate-200 font-bold">{Math.round(player.stats.critChance * 100)}%</span>
+                <span>Crítico:</span>
+                <span className="text-slate-100 font-bold">{Math.round(player.stats.critChance * 100)}%</span>
               </div>
-              <div className="flex justify-between">
-                <span>Redução Recarga:</span>
-                <span className="text-slate-200 font-bold">{Math.round(player.stats.cooldownReduction * 100)}%</span>
+              <div className="flex justify-between col-span-2 border-t border-slate-800/60 pt-1">
+                <span>Redução de Recarga:</span>
+                <span className="text-slate-100 font-bold">{Math.round(player.stats.cooldownReduction * 100)}%</span>
               </div>
             </div>
           </div>
 
-          {/* Column 2: 20-Slot Grid */}
+          {/* Column 2: 20-Slot Grid with Discrete Outline on Uninspected Items (GDD 8.4) */}
           <div
             className={`lg:col-span-4 bg-[#111622] border border-slate-800/80 rounded-xl p-3.5 flex-col ${
               mobileTab === 'inventory' ? 'flex' : 'hidden lg:flex'
             }`}
           >
-            <h3 className="text-xs font-mono font-semibold uppercase tracking-wider text-slate-400 mb-2">
-              Grade da Mochila (20 Slots)
-            </h3>
+            <div className="flex items-center justify-between mb-2">
+              <h3 className="text-xs font-mono font-semibold uppercase tracking-wider text-slate-400">
+                Grade da Mochila (20 Slots)
+              </h3>
+              {newItemsCount > 0 && (
+                <span className="text-[9px] font-mono px-2 py-0.5 rounded-full bg-cyan-950/90 text-cyan-300 border border-cyan-500/70 animate-pulse font-semibold flex items-center gap-1 shadow">
+                  <Sparkles className="w-2.5 h-2.5 text-cyan-400" />
+                  {newItemsCount} {newItemsCount === 1 ? 'Novo' : 'Novos'}
+                </span>
+              )}
+            </div>
 
             <div className="grid grid-cols-4 sm:grid-cols-5 lg:grid-cols-4 gap-2">
               {player.inventory.map((item, index) => {
                 const isSelected = selectedIndex === index;
+                const isNew = Boolean(item && item.isNew && !inspectedIds.has(item.id));
+
                 return (
                   <button
                     key={index}
                     onClick={() => {
                       soundManager.playButtonClick();
+                      if (item && item.isNew) {
+                        item.isNew = false; // Inspected! Remove discrete outline immediately
+                        setInspectedIds((prev) => new Set(prev).add(item.id));
+                      }
                       setSelectedEquipSlot(null);
                       setSelectedIndex(index);
                       setConfirmingDiscard(false);
                     }}
                     className={`aspect-square rounded-lg border p-1 flex flex-col items-center justify-center transition-all relative ${
                       isSelected
-                        ? 'border-sky-400 bg-sky-950/40 ring-1 ring-sky-400'
+                        ? 'border-sky-400 bg-sky-950/50 ring-2 ring-sky-400 shadow-[0_0_12px_rgba(56,189,248,0.4)]'
                         : item
                         ? getRarityColor(item.rarity)
                         : 'border-slate-800 bg-slate-950/40 hover:border-slate-700'
+                    } ${
+                      isNew
+                        ? 'ring-1.5 ring-cyan-400/85 border-cyan-400/80 shadow-[0_0_10px_rgba(34,211,238,0.35)] animate-pulse'
+                        : ''
                     }`}
                   >
+                    {/* Discrete outline indicator for newly obtained uninspected items (GDD 8.4) */}
+                    {isNew && (
+                      <span
+                        className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-cyan-400 shadow-[0_0_8px_#22d3ee] border border-black animate-pulse"
+                        title="Item recém-obtido (não inspecionado)"
+                      />
+                    )}
+
                     {item ? (
-                      <>
-                        <span className="text-xs font-bold truncate max-w-full text-center px-1">
-                          {item.name.split(' ')[0]}
+                      <div className="flex flex-col items-center justify-between w-full h-full py-0.5">
+                        <ItemIcon item={item} size={52} showRarityGlow />
+                        <span
+                          className={`text-[9px] sm:text-[10px] font-bold truncate max-w-full text-center px-0.5 leading-tight ${
+                            item.rarity === 'legendary'
+                              ? 'text-amber-400'
+                              : item.rarity === 'rare'
+                              ? 'text-sky-300'
+                              : 'text-slate-200'
+                          }`}
+                          title={item.name}
+                        >
+                          {item.name.replace(/^antigo\s+/i, '').trim()}
                         </span>
-                        <span className="text-[9px] font-mono text-slate-400 uppercase mt-0.5">
-                          {item.type}
-                        </span>
-                      </>
+                      </div>
                     ) : (
-                      <span className="text-[10px] font-mono text-slate-700">{index + 1}</span>
+                      <span className="text-[11px] font-mono text-slate-700 m-auto">{index + 1}</span>
                     )}
                   </button>
                 );
               })}
             </div>
 
-            <p className="text-[11px] text-slate-500 mt-auto pt-3">
-              Toque num item para abrir o painel comparativo de atributos e equipar.
+            <p className="text-[11px] text-slate-500 mt-auto pt-2.5 leading-tight">
+              Itens recém-obtidos recebem contorno ciano discreto até serem inspecionados. Toque para comparar e equipar.
             </p>
           </div>
 
@@ -320,22 +428,35 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
           <div className="lg:col-span-4 bg-[#111622] border border-slate-800/80 rounded-xl p-3.5 flex flex-col justify-between">
             {selectedItem ? (
               <div className="flex flex-col gap-3">
-                {/* Header of selected item */}
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-[10px] font-mono uppercase text-sky-400">
-                      {getRarityBadge(selectedItem.rarity)} · {selectedItem.type.toUpperCase()}
-                    </span>
-                    {isInspectingInventory && (
-                      <span className="text-[10px] font-mono text-slate-500">Na Mochila</span>
-                    )}
+                {/* Header of selected item with High-Res Sprite Icon */}
+                <div className="flex items-start gap-3 bg-slate-950/70 p-2.5 rounded-xl border border-slate-800/90 shadow-inner">
+                  <div className="p-1.5 rounded-xl bg-slate-900 border border-slate-700/80 shadow-md flex items-center justify-center shrink-0">
+                    <ItemIcon item={selectedItem} size={60} showRarityGlow />
                   </div>
-                  <h4 className="text-sm sm:text-base font-cinzel font-bold text-slate-100">
-                    {selectedItem.name}
-                  </h4>
-                  <p className="text-xs text-slate-400 mt-1 leading-relaxed">
-                    {selectedItem.description}
-                  </p>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between mb-0.5">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[9.5px] font-mono uppercase text-sky-400 font-bold">
+                          {getRarityBadge(selectedItem.rarity)} · {selectedItem.type.toUpperCase()}
+                        </span>
+                        {(selectedItem.isNew || (isInspectingInventory && selectedIndex !== null && player.inventory[selectedIndex]?.isNew)) && (
+                          <span className="text-[8.5px] font-mono font-bold px-1.5 py-0.2 rounded-full bg-cyan-950 text-cyan-300 border border-cyan-500/80 flex items-center gap-1 shadow animate-pulse">
+                            <Sparkles className="w-2.5 h-2.5 text-cyan-400" />
+                            NOVO
+                          </span>
+                        )}
+                      </div>
+                      {isInspectingInventory && (
+                        <span className="text-[9.5px] font-mono text-slate-500">Mochila #{selectedIndex! + 1}</span>
+                      )}
+                    </div>
+                    <h4 className="text-sm font-cinzel font-bold text-slate-100 truncate">
+                      {selectedItem.name}
+                    </h4>
+                    <p className="text-[11px] text-slate-400 mt-0.5 leading-relaxed line-clamp-2">
+                      {selectedItem.description}
+                    </p>
+                  </div>
                 </div>
 
                 {/* If selected item is a Ring in inventory, offer selector to compare against Ring 1 or Ring 2 */}
@@ -377,6 +498,24 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
                       <span className="text-slate-500">Bônus Direto</span>
                     )}
                   </div>
+
+                  {equippedComparisonItem && (
+                    <div className="flex items-center justify-between bg-slate-950/70 px-2 py-1 rounded border border-slate-800/80 mb-2">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <ItemIcon item={equippedComparisonItem} size={20} />
+                        <span className="text-[9.5px] font-mono text-slate-400 truncate max-w-[85px]">
+                          {equippedComparisonItem.name.replace(/^antigo\s+/i, '').split(' ')[0]}
+                        </span>
+                      </div>
+                      <span className="text-slate-600 text-[10px] font-bold">→</span>
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="text-[9.5px] font-mono text-sky-300 font-semibold truncate max-w-[85px]">
+                          {selectedItem.name.replace(/^antigo\s+/i, '').split(' ')[0]}
+                        </span>
+                        <ItemIcon item={selectedItem} size={20} showRarityGlow />
+                      </div>
+                    </div>
+                  )}
 
                   <div className="space-y-0.5">
                     {selectedItem.type === 'potion' ? (
@@ -504,6 +643,7 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
                               onClick={() => {
                                 onEquip(selectedIndex);
                                 setSelectedIndex(null);
+                                onClose();
                               }}
                               className="w-full py-2.5 px-4 rounded-lg bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white text-xs font-mono font-bold uppercase tracking-wider transition-all shadow-lg flex items-center justify-center gap-2 active:scale-98 ring-1 ring-amber-400/40"
                             >
@@ -515,6 +655,7 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
                               onClick={() => {
                                 onEquip(selectedIndex);
                                 setSelectedIndex(null);
+                                onClose();
                               }}
                               className="w-full py-2.5 px-4 rounded-lg bg-gradient-to-r from-purple-700 to-indigo-700 hover:from-purple-600 hover:to-indigo-600 text-white text-xs font-mono font-bold uppercase tracking-wider transition-all shadow-lg flex items-center justify-center gap-2 active:scale-98 ring-1 ring-purple-400/40"
                             >

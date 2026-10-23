@@ -1,16 +1,31 @@
 import { DungeonFloor, Enemy, FloatingText, FogState, GroundItem, HazardArea, Particle, PlayerState, Projectile, TileType } from './types';
+import { getItemSprite, rpgInventorySheet } from './itemSprites';
 
 export class GameRenderer {
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
   private tileSize = 36; // rendered tile size in pixels
   private time = 0;
+  private itemSpritesheet: HTMLImageElement | null = null;
+  private itemSpritesheetLoaded = false;
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
     const context = canvas.getContext('2d', { willReadFrequently: true, alpha: false });
     if (!context) throw new Error('Could not get 2D context');
     this.ctx = context;
+
+    this.itemSpritesheet = new Image();
+    this.itemSpritesheet.onload = () => {
+      this.itemSpritesheetLoaded = true;
+    };
+    this.itemSpritesheet.onerror = (e) => {
+      console.warn('Failed to load item spritesheet in GameRenderer', e);
+    };
+    this.itemSpritesheet.src = rpgInventorySheet;
+    if (this.itemSpritesheet.complete && this.itemSpritesheet.naturalWidth > 0) {
+      this.itemSpritesheetLoaded = true;
+    }
   }
 
   public setTileSize(size: number) {
@@ -835,31 +850,123 @@ export class GameRenderer {
     const ctx = this.ctx;
     const ts = this.tileSize;
 
+    const isSpritesheetReady = Boolean(
+      this.itemSpritesheet &&
+        (this.itemSpritesheetLoaded || (this.itemSpritesheet.complete && this.itemSpritesheet.naturalWidth > 0))
+    );
+
     items.forEach((gi) => {
+      if (!gi.item) return;
+
       const tileX = Math.floor(gi.x);
       const tileY = Math.floor(gi.y);
-      if (dungeon.fog[tileY]?.[tileX] !== FogState.VISIBLE) return;
+      const fogState = dungeon.fog[tileY]?.[tileX];
+
+      // Hide only if completely unexplored tile
+      if (fogState === FogState.UNEXPLORED || fogState === undefined) return;
+      const isPartiallyHidden = fogState === FogState.EXPLORED_HIDDEN;
 
       const px = gi.x * ts;
-      const py = gi.y * ts + Math.sin(this.time * 4 + gi.bobTimer) * 4;
+      const bobOffset = Math.sin(this.time * 3.5 + gi.bobTimer) * 4;
+      const py = gi.y * ts + bobOffset;
 
-      // Glow halo
+      // Glow halo and glow colors based on rarity
       let color = '#94A3B8';
-      if (gi.item.rarity === 'rare') color = '#38BDF8';
-      if (gi.item.rarity === 'legendary') color = '#F59E0B';
+      let shadowColor = 'rgba(148, 163, 184, 0.45)';
+      if (gi.item.rarity === 'rare') {
+        color = '#38BDF8';
+        shadowColor = 'rgba(56, 189, 248, 0.75)';
+      } else if (gi.item.rarity === 'legendary') {
+        color = '#F59E0B';
+        shadowColor = 'rgba(245, 158, 11, 0.9)';
+      }
 
-      ctx.fillStyle = color;
+      ctx.save();
+      if (isPartiallyHidden) {
+        ctx.globalAlpha = 0.65;
+      }
+
+      // 1. Pillar of light / beacon for Rare & Legendary loot
+      if (gi.item.rarity === 'legendary' || gi.item.rarity === 'rare') {
+        const beamH = gi.item.rarity === 'legendary' ? 46 : 32;
+        const beamW = gi.item.rarity === 'legendary' ? 16 : 10;
+        const beamGrad = ctx.createLinearGradient(px, py + 10, px, py - beamH);
+        beamGrad.addColorStop(0, color);
+        beamGrad.addColorStop(1, 'transparent');
+        ctx.fillStyle = beamGrad;
+        ctx.fillRect(px - beamW / 2, py - beamH, beamW, beamH);
+      }
+
+      // 2. Ground shadow under floating item
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
       ctx.beginPath();
-      ctx.arc(px, py, 6, 0, Math.PI * 2);
+      ctx.ellipse(px, gi.y * ts + 12, 11, 4.5, 0, 0, Math.PI * 2);
       ctx.fill();
 
-      // Soft glow ring
+      // 3. Pulsing aura ring
+      const ringRadius = 15 + Math.sin(this.time * 4 + gi.bobTimer) * 2.5;
       ctx.strokeStyle = color;
       ctx.lineWidth = 1.5;
       ctx.beginPath();
-      ctx.arc(px, py, 9 + Math.sin(this.time * 5) * 2, 0, Math.PI * 2);
+      ctx.arc(px, py, ringRadius, 0, Math.PI * 2);
       ctx.stroke();
-      ctx.lineWidth = 1;
+
+      // 4. Draw item sprite or fallback
+      const sprite = getItemSprite(gi.item);
+      const itemSize = 32; // Prominent size matching tile scale
+
+      if (isSpritesheetReady && this.itemSpritesheet && sprite) {
+        ctx.save();
+        ctx.shadowColor = shadowColor;
+        ctx.shadowBlur = gi.item.rarity === 'legendary' ? 14 : gi.item.rarity === 'rare' ? 9 : 4;
+        ctx.drawImage(
+          this.itemSpritesheet,
+          sprite.frame.x,
+          sprite.frame.y,
+          sprite.frame.w,
+          sprite.frame.h,
+          px - itemSize / 2,
+          py - itemSize / 2,
+          itemSize,
+          itemSize
+        );
+        ctx.restore();
+      } else {
+        // Fallback prominent diamond
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.moveTo(px, py - 10);
+        ctx.lineTo(px + 10, py);
+        ctx.lineTo(px, py + 10);
+        ctx.lineTo(px - 10, py);
+        ctx.closePath();
+        ctx.fill();
+        ctx.strokeStyle = '#FFFFFF';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      }
+
+      // 5. Floating item name tag above the item
+      ctx.save();
+      ctx.font = 'bold 9px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#0F172A';
+      const cleanName = gi.item.name.replace(/^antigo\s+/i, '');
+      const textW = ctx.measureText(cleanName).width;
+
+      // Small background tag for legibility
+      ctx.fillStyle = 'rgba(10, 15, 25, 0.75)';
+      ctx.fillRect(px - textW / 2 - 4, py - 24, textW + 8, 12);
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 0.8;
+      ctx.strokeRect(px - textW / 2 - 4, py - 24, textW + 8, 12);
+
+      // Name text
+      ctx.fillStyle = color;
+      ctx.fillText(cleanName, px, py - 15);
+      ctx.restore();
+
+      ctx.restore();
     });
   }
 

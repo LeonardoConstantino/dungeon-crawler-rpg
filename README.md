@@ -71,6 +71,8 @@ O jogo não é sobre invencibilidade, mas sobre a ansiedade da impermanência: �
 | **Habilidade III (Pulso do Vazio)** | Tecla `3` |
 | **Habilidade IV (Resguardo do Amuleto)** | Tecla `4` |
 | **Beber Frasco de Sangue** | Tecla `Q` |
+| **Ativar Pergaminho Rápido** | Tecla `E` |
+| **Consumir Elixir Rápido** | Tecla `R` |
 | **Abrir/Fechar Mochila** | Tecla `I` ou `B` |
 | **Pausar Jogo** | Tecla `ESC` |
 

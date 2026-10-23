@@ -2,6 +2,7 @@ import React, { useRef, useState, useEffect } from 'react';
 import { PlayerState } from '../game/types';
 import { Shield, Heart, Sword, Zap, Sparkles } from 'lucide-react';
 import { soundManager } from '../game/audio';
+import { ItemIcon } from './ItemIcon';
 
 interface MobileGamepadProps {
   player: PlayerState;
@@ -95,7 +96,7 @@ export const MobileGamepad: React.FC<MobileGamepadProps> = ({
     }
   };
 
-  const handleTouchEnd = (e: React.TouchEvent) => {
+  const handleTouchEnd = (e: React.TouchEvent | TouchEvent) => {
     for (let i = 0; i < e.changedTouches.length; i++) {
       if (e.changedTouches[i].identifier === touchIdRef.current) {
         touchIdRef.current = null;
@@ -106,6 +107,35 @@ export const MobileGamepad: React.FC<MobileGamepadProps> = ({
       }
     }
   };
+
+  // Window-level safety listeners to ensure joystick never gets stuck
+  useEffect(() => {
+    const handleGlobalTouchEnd = (e: TouchEvent) => {
+      if (touchIdRef.current !== null) {
+        handleTouchEnd(e);
+      }
+    };
+
+    const handleGlobalBlur = () => {
+      touchIdRef.current = null;
+      setJoystickActive(false);
+      setStickPos({ x: 0, y: 0 });
+      onMove(0, 0);
+      onAttack(false);
+    };
+
+    window.addEventListener('touchend', handleGlobalTouchEnd, { passive: true });
+    window.addEventListener('touchcancel', handleGlobalTouchEnd, { passive: true });
+    window.addEventListener('blur', handleGlobalBlur);
+
+    return () => {
+      window.removeEventListener('touchend', handleGlobalTouchEnd);
+      window.removeEventListener('touchcancel', handleGlobalTouchEnd);
+      window.removeEventListener('blur', handleGlobalBlur);
+      onMove(0, 0);
+      onAttack(false);
+    };
+  }, [onMove, onAttack]);
 
   const isLowHp = player.stats.hp <= player.stats.maxHp * 0.35;
 
@@ -192,19 +222,15 @@ export const MobileGamepad: React.FC<MobileGamepadProps> = ({
                   onUseConsumable(quickConsumableIndex);
                 }
               }}
-              className={`w-11 h-11 sm:w-12 sm:h-12 rounded-full border flex flex-col items-center justify-center shadow-lg active:scale-90 transition-transform ${
+              className={`w-11 h-11 sm:w-12 sm:h-12 rounded-full border flex flex-col items-center justify-center shadow-lg active:scale-90 transition-transform overflow-hidden ${
                 quickConsumable.type === 'scroll'
                   ? 'bg-gradient-to-tr from-amber-950 via-amber-900 to-amber-700 border-amber-500 text-amber-200 ring-1 ring-amber-400/60'
                   : 'bg-gradient-to-tr from-purple-950 via-purple-900 to-indigo-800 border-purple-500 text-purple-200 ring-1 ring-purple-400/60'
               }`}
               title={`Ativar ${quickConsumable.name}`}
             >
-              {quickConsumable.type === 'scroll' ? (
-                <Sparkles className="w-4 h-4 text-amber-300 animate-pulse" />
-              ) : (
-                <Zap className="w-4 h-4 text-purple-300 animate-pulse" />
-              )}
-              <span className="text-[7.5px] font-mono font-bold uppercase truncate max-w-[38px] leading-none mt-0.5">
+              <ItemIcon item={quickConsumable} size={22} showRarityGlow />
+              <span className="text-[7px] font-mono font-bold uppercase truncate max-w-[38px] leading-none mt-0.5">
                 {quickConsumable.type === 'scroll' ? 'Perg' : 'Elixir'}
               </span>
             </button>
@@ -218,10 +244,13 @@ export const MobileGamepad: React.FC<MobileGamepadProps> = ({
               soundManager.playButtonClick();
               onOpenInventory();
             }}
-            className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-[#111827]/90 active:bg-slate-700 border border-slate-700 text-slate-300 flex items-center justify-center shadow-lg active:scale-90 transition-transform"
+            className="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-[#111827]/90 active:bg-slate-700 border border-slate-700 text-slate-300 flex items-center justify-center shadow-lg active:scale-90 transition-transform relative"
             title="Mochila"
           >
             <Shield className="w-5 h-5 text-slate-300" />
+            {player.inventory.some((i) => i?.isNew) && (
+              <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-cyan-400 border border-black shadow-[0_0_8px_#22d3ee] animate-pulse" />
+            )}
           </button>
 
           {/* Quick Potion Button */}
@@ -242,10 +271,12 @@ export const MobileGamepad: React.FC<MobileGamepadProps> = ({
                 ? 'bg-rose-900 border-rose-500 text-rose-200 animate-pulse ring-2 ring-rose-500'
                 : 'bg-rose-950/80 border-rose-700 text-rose-300'
             }`}
-            title="Beber Frasco de Sangue"
+            title="Beber Frasco de Sangue Frio"
           >
-            <Heart className="w-4 h-4 fill-rose-500/40 text-rose-400" />
-            <span className="text-[9px] font-mono font-bold">{player.potionsCount}</span>
+            <div className="w-5 h-5 flex items-center justify-center -mt-0.5">
+              <ItemIcon item="Frasco de Sangue Frio" size={20} />
+            </div>
+            <span className="text-[9px] font-mono font-bold leading-none">{player.potionsCount}</span>
           </button>
         </div>
 

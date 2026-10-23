@@ -159,6 +159,7 @@ export class GameEngine {
       icon: 'sword',
       stats: { attack: Math.round(10 * atkBonus), critChance: 0.05 },
       value: 10,
+      isNew: false,
     };
 
     const starterArmor: Item = {
@@ -170,6 +171,7 @@ export class GameEngine {
       icon: 'shield',
       stats: { defense: 3, maxHp: 10 },
       value: 10,
+      isNew: false,
     };
 
     const inventory: (Item | null)[] = Array(20).fill(null);
@@ -183,6 +185,7 @@ export class GameEngine {
       value: 15,
       healAmount: 45,
       stats: {},
+      isNew: false,
     };
     inventory[1] = {
       id: 'scroll-init-1',
@@ -194,6 +197,7 @@ export class GameEngine {
       scrollEffect: 'reveal_map',
       value: 25,
       stats: {},
+      isNew: false,
     };
 
     this.player = {
@@ -538,6 +542,30 @@ export class GameEngine {
     return true;
   }
 
+  public useFirstScroll(): boolean {
+    if (this.isPaused || this.isGameOver) return false;
+    const scrollIndex = this.player.inventory.findIndex(
+      (item) => item !== null && item.type === 'scroll'
+    );
+    if (scrollIndex === -1) {
+      if (this.onMessage) this.onMessage('Nenhum pergaminho na mochila! (Tecla E)', 'info');
+      return false;
+    }
+    return this.useItem(scrollIndex);
+  }
+
+  public useFirstElixir(): boolean {
+    if (this.isPaused || this.isGameOver) return false;
+    const elixirIndex = this.player.inventory.findIndex(
+      (item) => item !== null && item.type === 'elixir'
+    );
+    if (elixirIndex === -1) {
+      if (this.onMessage) this.onMessage('Nenhum elixir na mochila! (Tecla R)', 'info');
+      return false;
+    }
+    return this.useItem(elixirIndex);
+  }
+
   public update(dt: number) {
     if (this.isPaused || this.isGameOver) return;
 
@@ -663,7 +691,22 @@ export class GameEngine {
     // 2. Update Ground Items & Interaction
     this.groundItems.forEach((gi) => {
       gi.bobTimer += dt;
+
       const dist = Math.hypot(gi.x - this.player.x, gi.y - this.player.y);
+
+      // If item was dropped/discarded by the player, they must walk away first before it can ever be picked back up
+      if (gi.requireWalkAway) {
+        if (dist > 1.5) {
+          gi.requireWalkAway = false; // Player stepped away, can now be picked up if they return
+        }
+        return;
+      }
+
+      if (gi.pickupDelay && gi.pickupDelay > 0) {
+        gi.pickupDelay -= dt;
+        return;
+      }
+
       if (dist <= 0.85) {
         // Collect item
         this.collectGroundItem(gi);
@@ -878,9 +921,10 @@ export class GameEngine {
       this.groundItems.push({
         id: `drop-${Date.now()}-${Math.random()}`,
         item,
-        x: enemy.x,
-        y: enemy.y,
+        x: enemy.x + (Math.random() - 0.5) * 0.4,
+        y: enemy.y + (Math.random() - 0.5) * 0.4,
         bobTimer: Math.random() * 5,
+        pickupDelay: 0.6,
       });
       soundManager.playChestOpen(item.rarity !== 'common');
     }
@@ -1097,6 +1141,7 @@ export class GameEngine {
     // Find empty slot in inventory
     const emptyIndex = this.player.inventory.findIndex((slot) => slot === null);
     if (emptyIndex !== -1) {
+      gi.item.isNew = true;
       this.player.inventory[emptyIndex] = gi.item;
       soundManager.playChestOpen(gi.item.rarity !== 'common');
       if (this.onMessage) {
@@ -1114,7 +1159,7 @@ export class GameEngine {
     this.triggerScreenShake(5);
     this.createParticles(tileX + 0.5, tileY + 0.5, '#F59E0B', 20);
 
-    // Spawn 1-2 items around chest
+    // Spawn 1-2 items around chest with pickupDelay so player sees them
     const item1 = generateItem(this.prng, this.currentFloorNumber, 'rare');
     this.groundItems.push({
       id: `chest-item-${Date.now()}-1`,
@@ -1122,6 +1167,7 @@ export class GameEngine {
       x: tileX + 0.5,
       y: tileY + 1.2,
       bobTimer: 0,
+      pickupDelay: 0.8,
     });
 
     if (Math.random() > 0.4) {
@@ -1132,6 +1178,7 @@ export class GameEngine {
         x: tileX + 1.2,
         y: tileY + 0.5,
         bobTimer: 1.5,
+        pickupDelay: 0.8,
       });
     }
 
@@ -1224,11 +1271,117 @@ export class GameEngine {
         if (this.onMessage) this.onMessage('A Revelação Arcana expôs todas as salas, tesouros e escadas da masmorra.', 'rare');
       } else if (item.scrollEffect === 'teleport') {
         const stairs = this.dungeon.stairsPos;
-        this.player.x = stairs.x + 0.5;
-        this.player.y = stairs.y + 0.5;
-        this.player.invulnerableTimer = 2.5;
+        let targetX = -1;
+        let targetY = -1;
+
+        // BFS outward from stairs to find a safe, open floor tile
+        // (never a wall, void, pillar, chest, fissure, or the stairs tile itself)
+        const visited = new Set<string>();
+        const queue: Array<{ x: number; y: number; dist: number }> = [
+          { x: stairs.x, y: stairs.y, dist: 0 },
+        ];
+        visited.add(`${stairs.x},${stairs.y}`);
+
+        while (queue.length > 0) {
+          const curr = queue.shift()!;
+          if (curr.dist > 12) break;
+
+          // Check if curr tile is valid floor and not the stairs
+          if (curr.dist >= 1) {
+            const tile = this.dungeon.tiles[curr.y]?.[curr.x];
+            if (
+              tile !== undefined &&
+              !this.isTileWall(curr.x, curr.y) &&
+              tile !== TileType.STAIRS_DOWN &&
+              tile !== TileType.CHEST_CLOSED &&
+              tile !== TileType.CHEST_OPEN &&
+              tile !== TileType.FISSURE &&
+              tile !== TileType.WALL &&
+              tile !== TileType.VOID &&
+              tile !== TileType.PILLAR
+            ) {
+              // Ensure at least 2 open neighbor tiles for comfortable movement
+              let openNeighbors = 0;
+              const nOffsets = [
+                { nx: curr.x + 1, ny: curr.y },
+                { nx: curr.x - 1, ny: curr.y },
+                { nx: curr.x, ny: curr.y + 1 },
+                { nx: curr.x, ny: curr.y - 1 },
+              ];
+              for (const n of nOffsets) {
+                if (!this.isTileWall(n.nx, n.ny)) openNeighbors++;
+              }
+
+              if (openNeighbors >= 2) {
+                targetX = curr.x;
+                targetY = curr.y;
+                break;
+              }
+            }
+          }
+
+          // Expand to 4 directions
+          const dirs = [
+            { dx: 0, dy: 1 },
+            { dx: 0, dy: -1 },
+            { dx: 1, dy: 0 },
+            { dx: -1, dy: 0 },
+          ];
+          for (const d of dirs) {
+            const nx = curr.x + d.dx;
+            const ny = curr.y + d.dy;
+            const key = `${nx},${ny}`;
+            if (
+              nx >= 0 &&
+              nx < this.dungeon.width &&
+              ny >= 0 &&
+              ny < this.dungeon.height &&
+              !visited.has(key)
+            ) {
+              visited.add(key);
+              if (!this.isTileWall(nx, ny)) {
+                queue.push({ x: nx, y: ny, dist: curr.dist + 1 });
+              }
+            }
+          }
+        }
+
+        // Guaranteed fallback if stairs room was somehow sealed
+        if (targetX === -1 || targetY === -1) {
+          targetX = this.dungeon.playerSpawn.x;
+          targetY = this.dungeon.playerSpawn.y;
+        }
+
+        this.player.x = targetX + 0.5;
+        this.player.y = targetY + 0.5;
+        this.player.vx = 0;
+        this.player.vy = 0;
+        this.moveInput = { x: 0, y: 0 };
+        this.player.isAttacking = false;
+        this.player.attackTimer = 0;
+        this.isAttackPressed = false;
+        this.player.invulnerableTimer = 3.0;
+
+        // Push away any enemies close to the landing spot
+        this.enemies.forEach((enemy) => {
+          const d = Math.hypot(enemy.x - this.player.x, enemy.y - this.player.y);
+          if (d < 3.2) {
+            const angle = Math.atan2(enemy.y - this.player.y, enemy.x - this.player.x) || Math.random() * Math.PI * 2;
+            for (const dist of [3.5, 3.0, 2.5, 2.0]) {
+              const ex = this.player.x + Math.cos(angle) * dist;
+              const ey = this.player.y + Math.sin(angle) * dist;
+              if (!this.isTileWall(ex, ey)) {
+                enemy.x = ex;
+                enemy.y = ey;
+                break;
+              }
+            }
+          }
+        });
+
         updateFogOfWar(this.dungeon, this.player.x, this.player.y, this.player.stats.visionRadius);
-        this.createParticles(this.player.x, this.player.y, '#A855F7', 30);
+        this.createParticles(this.player.x, this.player.y, '#A855F7', 35);
+        this.createParticles(stairs.x + 0.5, stairs.y + 0.5, '#38BDF8', 25);
         this.triggerScreenShake(7);
         this.addFloatingText(this.player.x, this.player.y - 0.5, 'Salto Espectral Realizado!', '#C084FC');
         if (this.onMessage) this.onMessage('Você rompeu as dimensões e surgiu diante das escadas!', 'rare');
@@ -1352,14 +1505,46 @@ export class GameEngine {
   }
 
   public discardItem(inventoryIndex: number) {
+    const item = this.player.inventory[inventoryIndex];
+    if (!item) return;
     this.player.inventory[inventoryIndex] = null;
+
+    // Drop onto ground at player location with requireWalkAway
+    const dropOffset = this.player.facing === 'right' ? 0.7 : -0.7;
+    this.groundItems.push({
+      id: `drop-discard-${Date.now()}-${Math.random()}`,
+      item,
+      x: this.player.x + dropOffset,
+      y: this.player.y,
+      bobTimer: 0,
+      pickupDelay: 0.5,
+      requireWalkAway: true,
+    });
+
     soundManager.playButtonClick();
+    if (this.onMessage) this.onMessage(`Item largado no chão: ${item.name}`, 'info');
   }
 
   public discardEquippedItem(slot: keyof PlayerState['equipment']) {
+    const item = this.player.equipment[slot];
+    if (!item) return;
     this.player.equipment[slot] = null;
     this.recalculatePlayerStats();
+
+    // Drop onto ground at player location with requireWalkAway
+    const dropOffset = this.player.facing === 'right' ? 0.7 : -0.7;
+    this.groundItems.push({
+      id: `drop-discard-${Date.now()}-${Math.random()}`,
+      item,
+      x: this.player.x + dropOffset,
+      y: this.player.y,
+      bobTimer: 0,
+      pickupDelay: 0.5,
+      requireWalkAway: true,
+    });
+
     soundManager.playButtonClick();
+    if (this.onMessage) this.onMessage(`Item desequipado e largado no chão: ${item.name}`, 'info');
   }
 
   public saveCurrentProgress() {
