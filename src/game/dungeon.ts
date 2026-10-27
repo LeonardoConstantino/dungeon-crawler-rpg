@@ -1,4 +1,4 @@
-import { DungeonFloor, Enemy, GroundItem, Item, ItemRarity, Room, SoulRemnant, TileType, FogState } from './types';
+import { DungeonFloor, EliteAffix, Enemy, GroundItem, Item, ItemRarity, Room, SoulRemnant, TileType, FogState } from './types';
 
 // Deterministic Mulberry32 PRNG
 export class PRNG {
@@ -363,7 +363,8 @@ export function generateDungeonFloor(
       tiles[centerY][centerX] = TileType.CHEST_CLOSED;
       r.hasChest = true;
     } else if (r.type === 'anomaly') {
-      tiles[centerY][centerX] = TileType.FISSURE;
+      const isAltar = prng.next() > 0.45;
+      tiles[centerY][centerX] = isAltar ? TileType.ALTAR : TileType.FISSURE;
       r.hasFissure = true;
     } else if (r.type === 'stairs') {
       tiles[centerY][centerX] = TileType.STAIRS_DOWN;
@@ -513,10 +514,30 @@ export function generateDungeonFloor(
         xp = 42;
       }
 
+      let affix: EliteAffix | undefined;
+      let affixName: string | undefined;
+      if (isElite) {
+        const affChoice = prng.pick([
+          { id: 'incendiary' as const, name: 'Incandescente' },
+          { id: 'swift' as const, name: 'Célere' },
+          { id: 'vampiric' as const, name: 'Vampírico' },
+          { id: 'volatile' as const, name: 'Volátil' },
+        ]);
+        affix = affChoice.id;
+        affixName = affChoice.name;
+        if (affix === 'swift') {
+          speed = Number((speed * 1.35).toFixed(2));
+        } else if (affix === 'vampiric') {
+          hp = Math.round(hp * 1.25);
+        } else if (affix === 'incendiary') {
+          attack = Math.round(attack * 1.15);
+        }
+      }
+
       enemies.push({
         id: `enemy-${floorNumber}-${e}-${ex}-${ey}`,
         type,
-        name: isElite ? `Elite ${type.toUpperCase()}` : type.toUpperCase(),
+        name: isElite && affixName ? `${affixName} ${type.toUpperCase()}` : (isElite ? `ELITE ${type.toUpperCase()}` : type.toUpperCase()),
         x: ex + 0.5,
         y: ey + 0.5,
         width: isElite ? 1.2 : 0.9,
@@ -527,14 +548,17 @@ export function generateDungeonFloor(
         defense,
         speed,
         isElite,
+        affix,
+        affixName,
         attackCooldown: prng.range(0.2, 1.0),
         maxAttackCooldown: cd,
         attackWindup: 0,
         isAttacking: false,
         facing: prng.next() > 0.5 ? 'right' : 'left',
         state: 'idle',
-        xpReward: Math.round(xp * depthMult * (isElite ? 2.2 : 1.0)),
+        xpReward: Math.round(xp * depthMult * (isElite ? 2.5 : 1.0)),
         fissurePower: hungerLevel,
+        hitFlashTimer: 0,
       });
     }
   });

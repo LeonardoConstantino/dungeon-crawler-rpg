@@ -60,6 +60,8 @@ export interface Skill {
 
 export type EnemyType = 'goblin' | 'orc' | 'archer' | 'mage' | 'boss';
 
+export type EliteAffix = 'incendiary' | 'swift' | 'vampiric' | 'volatile';
+
 export interface Enemy {
   id: string;
   type: EnemyType;
@@ -74,6 +76,8 @@ export interface Enemy {
   speed: number;
   defense: number;
   isElite: boolean;
+  affix?: EliteAffix;
+  affixName?: string;
   attackCooldown: number;
   maxAttackCooldown: number;
   attackWindup: number; // anticipation timer
@@ -86,6 +90,18 @@ export interface Enemy {
   telegraphTimer?: number;
   xpReward: number;
   fissurePower: number; // scaling with Abyss Hunger
+  hitFlashTimer?: number;
+}
+
+export interface FloorClearSummary {
+  floorCompleted: number;
+  nextFloor: number;
+  enemiesKilled: number;
+  timeSpentSeconds: number;
+  hungerStatus: string;
+  hungerLevel: number;
+  healAmount: number;
+  remnantsAmount: number;
 }
 
 export interface Projectile {
@@ -292,4 +308,38 @@ export interface PlayerState {
   shieldHp: number;
   maxShieldHp: number;
   potionsCount: number;
+  hitFlashTimer?: number;
+}
+
+export interface FloorBounty {
+  id: string;
+  title: string;
+  description: string;
+  targetCount: number;
+  currentCount: number;
+  type: 'kill_elites' | 'kill_total' | 'kill_combo' | 'clear_dormant' | 'skill_kills';
+  isCompleted: boolean;
+  rewardText: string;
+  rewardVestiges: number;
+  rewardType: 'vestiges' | 'chest' | 'potion';
+}
+
+export interface VoidPact {
+  id: string;
+  title: string;
+  tagline: string;
+  costDescription: string;
+  benefitDescription: string;
+  icon: 'blood' | 'fury' | 'greed' | 'haste';
+  rarity: 'rare' | 'legendary' | 'curse';
+  costType: 'hp_pct' | 'hunger_accelerate' | 'spawn_elites' | 'defense_trade';
+  benefitType: 'legendary_loot' | 'attack_boost' | 'vestiges_lump' | 'cooldown_cut';
+  costValue: number;
+  benefitValue: number;
+}
+
+export interface AltarOffer {
+  tileX: number;
+  tileY: number;
+  pacts: VoidPact[];
 }

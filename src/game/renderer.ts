@@ -1,6 +1,18 @@
 import { DungeonFloor, Enemy, FloatingText, FogState, GroundItem, HazardArea, Particle, PlayerState, Projectile, TileType } from './types';
 import { getItemSprite, rpgInventorySheet } from './itemSprites';
 
+interface AmbientMote {
+  x: number;
+  y: number;
+  size: number;
+  speedY: number;
+  driftSpeed: number;
+  driftAmp: number;
+  phase: number;
+  baseAlpha: number;
+  hue: number;
+}
+
 export class GameRenderer {
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
@@ -8,12 +20,28 @@ export class GameRenderer {
   private time = 0;
   private itemSpritesheet: HTMLImageElement | null = null;
   private itemSpritesheetLoaded = false;
+  private ambientMotes: AmbientMote[] = [];
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
     const context = canvas.getContext('2d', { willReadFrequently: true, alpha: false });
     if (!context) throw new Error('Could not get 2D context');
     this.ctx = context;
+
+    // Initialize subtle atmospheric motes
+    for (let i = 0; i < 26; i++) {
+      this.ambientMotes.push({
+        x: Math.random() * 1920,
+        y: Math.random() * 1080,
+        size: 1.2 + Math.random() * 1.8,
+        speedY: 10 + Math.random() * 18,
+        driftSpeed: 0.7 + Math.random() * 1.1,
+        driftAmp: 8 + Math.random() * 14,
+        phase: Math.random() * Math.PI * 2,
+        baseAlpha: 0.16 + Math.random() * 0.22,
+        hue: Math.random() > 0.45 ? 275 : 190, // ethereal void purple and cyan
+      });
+    }
 
     this.itemSpritesheet = new Image();
     this.itemSpritesheet.onload = () => {
@@ -54,8 +82,12 @@ export class GameRenderer {
     ctx.fillRect(0, 0, width, height);
 
     // Camera centered on player
-    const camX = Math.round(player.x * this.tileSize - width / 2 + cameraShake.x);
-    const camY = Math.round(player.y * this.tileSize - height / 2 + cameraShake.y);
+    const pX = Number.isFinite(player.x) ? player.x : 5;
+    const pY = Number.isFinite(player.y) ? player.y : 5;
+    const shakeX = Number.isFinite(cameraShake.x) ? cameraShake.x : 0;
+    const shakeY = Number.isFinite(cameraShake.y) ? cameraShake.y : 0;
+    const camX = Math.round(pX * this.tileSize - width / 2 + shakeX);
+    const camY = Math.round(pY * this.tileSize - height / 2 + shakeY);
 
     ctx.save();
     ctx.translate(-camX, -camY);
@@ -89,7 +121,21 @@ export class GameRenderer {
 
     ctx.restore();
 
-    // 10. Low Health Vignette (Screen Space)
+    // 10. Ambient Ethereal Motes / Void Ash (Screen Space)
+    this.renderAmbientMotes(width, height, dungeon);
+
+    // 11. Permanent Dark Fantasy Cinematic Vignette (Screen Space)
+    const baseVignette = ctx.createRadialGradient(
+      width / 2, height / 2, Math.min(width, height) * 0.42,
+      width / 2, height / 2, Math.max(width, height) * 0.75
+    );
+    baseVignette.addColorStop(0, 'rgba(0, 0, 0, 0)');
+    baseVignette.addColorStop(0.68, 'rgba(4, 7, 14, 0.16)');
+    baseVignette.addColorStop(1, 'rgba(2, 4, 8, 0.52)');
+    ctx.fillStyle = baseVignette;
+    ctx.fillRect(0, 0, width, height);
+
+    // 12. Low Health Vignette (Screen Space)
     if (player.stats.hp / player.stats.maxHp < 0.3) {
       const pulse = 0.35 + Math.sin(this.time * 6) * 0.15;
       const grad = ctx.createRadialGradient(
@@ -102,7 +148,7 @@ export class GameRenderer {
       ctx.fillRect(0, 0, width, height);
     }
 
-    // 11. Abyss Hunger Atmospheric Vignette (Screen Space)
+    // 13. Abyss Hunger Atmospheric Vignette (Screen Space)
     if (dungeon.hungerLevel >= 1) {
       const hunger = dungeon.hungerLevel;
       const pulseSpeed = hunger >= 3 ? 4 : 2;
@@ -130,6 +176,39 @@ export class GameRenderer {
 
       ctx.fillStyle = grad;
       ctx.fillRect(0, 0, width, height);
+    }
+  }
+
+  private renderAmbientMotes(width: number, height: number, dungeon: DungeonFloor) {
+    const ctx = this.ctx;
+    const isAnomalous = dungeon.hungerLevel >= 2;
+
+    for (let i = 0; i < this.ambientMotes.length; i++) {
+      const mote = this.ambientMotes[i];
+      mote.y -= mote.speedY * 0.016;
+      if (mote.y < -15) {
+        mote.y = height + 15;
+        mote.x = Math.random() * width;
+      }
+      if (mote.x > width + 25) mote.x = -10;
+      if (mote.x < -25) mote.x = width + 10;
+
+      const driftX = mote.x + Math.sin(this.time * mote.driftSpeed + mote.phase) * mote.driftAmp;
+      const alphaPulse = mote.baseAlpha * (0.7 + 0.3 * Math.sin(this.time * 2.5 + mote.phase));
+
+      const hue = isAnomalous ? (i % 2 === 0 ? 285 : 345) : mote.hue;
+      ctx.fillStyle = `hsla(${hue}, 80%, 70%, ${alphaPulse})`;
+      ctx.beginPath();
+      ctx.arc(driftX, mote.y, mote.size, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Soft glow aura on slightly larger motes
+      if (mote.size > 2.0) {
+        ctx.fillStyle = `hsla(${hue}, 85%, 75%, ${alphaPulse * 0.3})`;
+        ctx.beginPath();
+        ctx.arc(driftX, mote.y, mote.size * 2.2, 0, Math.PI * 2);
+        ctx.fill();
+      }
     }
   }
 
@@ -990,7 +1069,7 @@ export class GameRenderer {
       ctx.strokeStyle = 'rgba(239, 68, 68, 0.7)';
       ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.arc(px, py, radius * (1 - progress), 0, Math.PI * 2);
+      ctx.arc(px, py, Math.max(0, radius * (1 - progress)), 0, Math.PI * 2);
       ctx.stroke();
 
       // Outer static ring
@@ -1027,12 +1106,18 @@ export class GameRenderer {
       ctx.ellipse(0, s * 0.48, s * 0.3, s * 0.08, 0, 0, Math.PI * 2);
       ctx.fill();
 
-      // Aura elite
+      // Aura elite com cor de afixo
       if (enemy.isElite) {
         ctx.save();
-        ctx.shadowColor = '#ef4444';
+        const auraColor =
+          enemy.affix === 'incendiary' ? '#f97316' :
+          enemy.affix === 'swift' ? '#0ea5e9' :
+          enemy.affix === 'vampiric' ? '#dc2626' :
+          enemy.affix === 'volatile' ? '#a855f7' : '#ef4444';
+
+        ctx.shadowColor = auraColor;
         ctx.shadowBlur = 14;
-        ctx.strokeStyle = 'rgba(239,68,68,0.75)';
+        ctx.strokeStyle = auraColor;
         ctx.lineWidth = 2.5;
         ctx.beginPath();
         ctx.arc(0, 0, s * 0.62, 0, Math.PI * 2);
@@ -1046,7 +1131,41 @@ export class GameRenderer {
       else if (enemy.type === 'mage') this._drawMage(ctx, s, enemy);
       else if (enemy.type === 'boss') this._drawBoss(ctx, s);
 
+      // Fast, zero-lag hit flash overlay (no GPU stalls, 60fps)
+      if (enemy.hitFlashTimer && enemy.hitFlashTimer > 0) {
+        const flashAlpha = Math.min(0.7, enemy.hitFlashTimer * 7.5);
+        ctx.fillStyle = `rgba(255, 255, 255, ${flashAlpha})`;
+        ctx.beginPath();
+        ctx.arc(0, 0, s * 0.46, 0, Math.PI * 2);
+        ctx.fill();
+      }
+
       ctx.restore();
+
+      // Badge superior de Afixo de Campeão Elite
+      if (enemy.isElite && enemy.affixName) {
+        const badgeText = enemy.affixName.toUpperCase();
+        ctx.font = 'bold 9px "JetBrains Mono", monospace';
+        ctx.textAlign = 'center';
+        const badgeColor =
+          enemy.affix === 'incendiary' ? '#fdba74' :
+          enemy.affix === 'swift' ? '#7dd3fc' :
+          enemy.affix === 'vampiric' ? '#fca5a5' :
+          enemy.affix === 'volatile' ? '#d8b4fe' : '#fecdd3';
+
+        const textW = ctx.measureText(badgeText).width;
+        const bY = py - s * 0.88;
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.88)';
+        ctx.beginPath();
+        ctx.roundRect(px - textW / 2 - 4, bY - 8, textW + 8, 11, 3);
+        ctx.fill();
+        ctx.strokeStyle = badgeColor;
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        ctx.fillStyle = badgeColor;
+        ctx.fillText(badgeText, px, bY);
+      }
 
       // Barra de HP
       if (enemy.hp < enemy.maxHp) {
@@ -1481,6 +1600,15 @@ export class GameRenderer {
       ctx.setLineDash([]);
     }
 
+    // Fast, zero-lag player hit flash overlay (no GPU stalls, 60fps)
+    if (player.hitFlashTimer && player.hitFlashTimer > 0) {
+      const flashAlpha = Math.min(0.7, player.hitFlashTimer * 7.5);
+      ctx.fillStyle = `rgba(255, 255, 255, ${flashAlpha})`;
+      ctx.beginPath();
+      ctx.arc(0, 0, s * 0.45, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
     ctx.restore();
   }
 
@@ -1685,16 +1813,35 @@ export class GameRenderer {
     ctx.quadraticCurveTo(0, -s * 0.18, s * 0.04, -s * 0.14);
     ctx.stroke();
 
-    // Anel de pulso ao tomar dano
+    // Anel de pulso e aura espectral enquanto invulnerável
     if (player.invulnerableTimer > 0) {
-      const ringT = 1 - player.invulnerableTimer / 0.5; // normalizado 0→1
-      ctx.globalAlpha = Math.max(0, 0.7 - ringT * 0.8);
-      ctx.strokeStyle = '#38bdf8';
+      // Aura espectral contínua enquanto invulnerável (e.g. após teleporte ou esquiva)
+      const auraPulse = 0.5 + Math.sin(this.time * 8) * 0.3;
+      ctx.save();
+      ctx.strokeStyle = `rgba(56, 189, 248, ${Math.max(0, auraPulse * 0.75)})`;
       ctx.lineWidth = 1.5;
+      ctx.setLineDash([3, 2]);
       ctx.beginPath();
-      ctx.arc(s * 0.04, -s * 0.09, s * 0.035 * (1 + ringT * 2.5), 0, Math.PI * 2);
+      ctx.arc(0, 0, Math.max(1, s * 0.55), 0, Math.PI * 2);
       ctx.stroke();
-      ctx.globalAlpha = 1;
+      ctx.restore();
+
+      // Onda de impacto rápido quando próximo de expirar (últimos 0.5s de invulnerabilidade)
+      if (player.invulnerableTimer <= 0.5) {
+        const ringT = Math.max(0, Math.min(1, 1 - player.invulnerableTimer / 0.5));
+        const pulseAlpha = Math.max(0, 0.7 - ringT * 0.8);
+        const pulseRadius = Math.max(0.1, s * 0.035 * (1 + ringT * 2.5));
+        if (pulseAlpha > 0 && pulseRadius > 0) {
+          ctx.save();
+          ctx.globalAlpha = pulseAlpha;
+          ctx.strokeStyle = '#38bdf8';
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.arc(s * 0.04, -s * 0.09, pulseRadius, 0, Math.PI * 2);
+          ctx.stroke();
+          ctx.restore();
+        }
+      }
     }
 
     ctx.restore();
@@ -1849,9 +1996,9 @@ export class GameRenderer {
     }
 
     // Dynamic player torch/amulet soft radial lighting
-    const px = player.x * ts;
-    const py = player.y * ts;
-    const lightRadius = player.stats.visionRadius * ts;
+    const px = (Number.isFinite(player.x) ? player.x : 5) * ts;
+    const py = (Number.isFinite(player.y) ? player.y : 5) * ts;
+    const lightRadius = Math.max(1, (player.stats?.visionRadius || 7) * ts);
 
     const torchGrad = ctx.createRadialGradient(px, py, lightRadius * 0.25, px, py, lightRadius);
     torchGrad.addColorStop(0, 'rgba(0, 0, 0, 0)');
@@ -1866,22 +2013,76 @@ export class GameRenderer {
     const ctx = this.ctx;
     const ts = this.tileSize;
 
-    ctx.font = 'bold 14px "JetBrains Mono", monospace';
-    ctx.textAlign = 'center';
-
     texts.forEach((ft) => {
-      const alpha = Math.max(0, ft.lifetime / ft.maxLifetime);
-      ctx.globalAlpha = alpha;
-
-      if (ft.isCrit) {
-        ctx.font = 'bold 18px "JetBrains Mono", monospace';
-        ctx.fillStyle = '#F59E0B';
-      } else {
-        ctx.font = 'bold 14px "JetBrains Mono", monospace';
-        ctx.fillStyle = ft.color;
+      const lifeRatio = Math.max(0, ft.lifetime / ft.maxLifetime);
+      // Punch scale effect: start bigger (1.5x for crit, 1.25x for normal), settle smoothly to 1.0x
+      const age = 1 - lifeRatio; // 0 (start) to 1 (end)
+      let punchScale = 1.0;
+      if (age < 0.22) {
+        const t = age / 0.22;
+        punchScale = ft.isCrit ? 1.5 - t * 0.5 : 1.25 - t * 0.25;
       }
 
-      ctx.fillText(ft.text, ft.x * ts, ft.y * ts);
+      ctx.save();
+      const posX = ft.x * ts;
+      const posY = ft.y * ts;
+      ctx.translate(posX, posY);
+      ctx.scale(punchScale, punchScale);
+      ctx.globalAlpha = Math.min(1, lifeRatio * 1.5);
+
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+
+      const isHeal = ft.text.startsWith('+') && !ft.text.includes('s') && !ft.text.includes('Vel');
+      const isShield = ft.text.toLowerCase().includes('escudo') || ft.color.includes('93C5FD') || ft.color.includes('A855F7');
+
+      if (ft.isCrit) {
+        // Critical hit with punch scale, double stroke and glowing gold
+        ctx.font = '900 18px "JetBrains Mono", monospace';
+        ctx.lineJoin = 'round';
+        ctx.lineWidth = 4;
+        ctx.strokeStyle = '#3F0A0A';
+        ctx.strokeText(`✦ ${ft.text}!`, 0, 0);
+
+        ctx.fillStyle = '#FDE047';
+        ctx.fillText(`✦ ${ft.text}!`, 0, 0);
+
+        // Core incandescent highlight
+        ctx.fillStyle = '#FEF9C3';
+        ctx.fillText(`✦ ${ft.text}!`, 0, 0);
+      } else if (isHeal) {
+        // Heal numbers with emerald glow and distinct cross
+        ctx.font = 'bold 15px "JetBrains Mono", monospace';
+        ctx.lineJoin = 'round';
+        ctx.lineWidth = 3.5;
+        ctx.strokeStyle = '#022C22';
+        ctx.strokeText(ft.text, 0, 0);
+
+        ctx.fillStyle = '#34D399';
+        ctx.fillText(ft.text, 0, 0);
+      } else if (isShield) {
+        // Absorbed damage / Shield with amethyst aura
+        ctx.font = 'bold 14px "JetBrains Mono", monospace';
+        ctx.lineJoin = 'round';
+        ctx.lineWidth = 3.5;
+        ctx.strokeStyle = '#1E1B4B';
+        ctx.strokeText(`⛨ ${ft.text}`, 0, 0);
+
+        ctx.fillStyle = '#C084FC';
+        ctx.fillText(`⛨ ${ft.text}`, 0, 0);
+      } else {
+        // Standard combat damage or text with crisp contrast outline
+        ctx.font = 'bold 14px "JetBrains Mono", monospace';
+        ctx.lineJoin = 'round';
+        ctx.lineWidth = 3.2;
+        ctx.strokeStyle = '#05070B';
+        ctx.strokeText(ft.text, 0, 0);
+
+        ctx.fillStyle = ft.color;
+        ctx.fillText(ft.text, 0, 0);
+      }
+
+      ctx.restore();
     });
 
     ctx.globalAlpha = 1.0;

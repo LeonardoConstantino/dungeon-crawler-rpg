@@ -56,15 +56,47 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
   }
 
   const getRarityColor = (rarity: string) => {
-    if (rarity === 'legendary') return 'border-amber-500 text-amber-400 bg-amber-950/20';
-    if (rarity === 'rare') return 'border-sky-500 text-sky-400 bg-sky-950/20';
-    return 'border-slate-700 text-slate-300 bg-slate-900/40';
+    if (rarity === 'legendary') {
+      return 'border-amber-500/90 text-amber-300 bg-gradient-to-b from-[#1C1408]/90 via-[#130E06]/95 to-[#080502]/95 shadow-[0_0_12px_rgba(245,158,11,0.3)] ring-1 ring-amber-400/35';
+    }
+    if (rarity === 'rare') {
+      return 'border-sky-500/80 text-sky-300 bg-gradient-to-b from-[#0A1624]/90 via-[#07101B]/95 to-[#040810]/95 shadow-[0_0_10px_rgba(56,189,248,0.25)] ring-1 ring-sky-400/35';
+    }
+    return 'border-slate-700/80 text-slate-300 bg-gradient-to-b from-[#141A28]/85 to-[#0A0E17]/95 hover:border-slate-500';
   };
 
   const getRarityBadge = (rarity: string) => {
     if (rarity === 'legendary') return 'LENDÁRIO';
     if (rarity === 'rare') return 'RARO';
     return 'COMUM';
+  };
+
+  // Helper to calculate instant stat difference compared to currently equipped gear
+  const getSlotStatDiff = (item: Item | null): { diff: number; label: string } | null => {
+    if (!item) return null;
+    if (item.type === 'weapon') {
+      const currentAtk = player.equipment.weapon?.stats?.attack || 0;
+      const itemAtk = item.stats?.attack || 0;
+      return { diff: itemAtk - currentAtk, label: 'ATQ' };
+    }
+    if (item.type === 'armor') {
+      const currentDef = player.equipment.armor?.stats?.defense || 0;
+      const itemDef = item.stats?.defense || 0;
+      return { diff: itemDef - currentDef, label: 'DEF' };
+    }
+    if (item.type === 'amulet') {
+      const currentHp = player.equipment.amulet?.stats?.maxHp || 0;
+      const itemHp = item.stats?.maxHp || 0;
+      return { diff: itemHp - currentHp, label: 'VIDA' };
+    }
+    if (item.type === 'ring') {
+      const r1 = player.equipment.ring1?.stats?.attack || 0;
+      const r2 = player.equipment.ring2?.stats?.attack || 0;
+      const minEquipped = Math.min(r1, r2);
+      const itemAtk = item.stats?.attack || 0;
+      return { diff: itemAtk - minEquipped, label: 'ATQ' };
+    }
+    return null;
   };
 
   // Helper to render stat comparison row
@@ -138,17 +170,33 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
           setSelectedEquipSlot(slotKey);
           setConfirmingDiscard(false);
         }}
-        className={`flex flex-col items-center justify-center p-1.5 sm:p-2 rounded-xl border text-center transition-all cursor-pointer relative ${
+        className={`flex flex-col items-center justify-center p-1.5 sm:p-2 rounded-xl border text-center transition-all cursor-pointer relative overflow-hidden ${
           isSelected
-            ? 'border-sky-400 bg-sky-950/60 ring-2 ring-sky-400 shadow-[0_0_12px_rgba(56,189,248,0.4)]'
+            ? 'border-sky-400 bg-sky-950/60 ring-2 ring-sky-400 shadow-[0_0_14px_rgba(56,189,248,0.45)]'
             : isMatchingBackpackItem
             ? 'border-emerald-500/80 bg-emerald-950/40 ring-1 ring-emerald-500/60 animate-pulse'
             : slotItem
-            ? `${getRarityColor(slotItem.rarity)} hover:border-slate-500 hover:bg-slate-900/60`
+            ? `${getRarityColor(slotItem.rarity)} hover:border-slate-400`
             : 'border-dashed border-slate-800 bg-slate-950/40 text-slate-600 hover:border-slate-700'
         }`}
         title={slotItem ? `${slotLabel}: ${slotItem.name}` : `${slotLabel}: Vazio`}
       >
+        {/* Corner Accents for Rare/Legendary Equipped Gear */}
+        {slotItem?.rarity === 'legendary' && (
+          <>
+            <span className="absolute top-1 left-1 w-1 h-1 bg-amber-400 rounded-full shadow-[0_0_4px_#fbbf24] pointer-events-none" />
+            <span className="absolute top-1 right-1 w-1 h-1 bg-amber-400 rounded-full shadow-[0_0_4px_#fbbf24] pointer-events-none" />
+            <span className="absolute bottom-1 left-1 w-1 h-1 bg-amber-400 rounded-full shadow-[0_0_4px_#fbbf24] pointer-events-none" />
+            <span className="absolute bottom-1 right-1 w-1 h-1 bg-amber-400 rounded-full shadow-[0_0_4px_#fbbf24] pointer-events-none" />
+          </>
+        )}
+        {slotItem?.rarity === 'rare' && (
+          <>
+            <span className="absolute top-1 left-1 w-1 h-1 bg-cyan-400 rounded-full shadow-[0_0_4px_#22d3ee] pointer-events-none" />
+            <span className="absolute top-1 right-1 w-1 h-1 bg-cyan-400 rounded-full shadow-[0_0_4px_#22d3ee] pointer-events-none" />
+          </>
+        )}
+
         <div
           className={`w-13 h-13 sm:w-15 sm:h-15 rounded-xl flex items-center justify-center shrink-0 border overflow-hidden ${
             slotItem
@@ -163,16 +211,16 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
             <Icon className="w-5 h-5 sm:w-6 sm:h-6 text-slate-600" />
           )}
         </div>
-        <span className="text-[8.5px] sm:text-[9.5px] font-mono uppercase tracking-tight text-slate-400 mt-1 truncate max-w-full">
+        <span className="text-[8.5px] sm:text-[9.5px] font-mono uppercase tracking-tight text-slate-400 mt-1 truncate max-w-full font-semibold">
           {slotLabel}
         </span>
         <span
           className={`text-[9.5px] sm:text-[10.5px] font-bold truncate max-w-full leading-tight px-0.5 ${
             slotItem
               ? slotItem.rarity === 'legendary'
-                ? 'text-amber-400'
+                ? 'text-amber-400 drop-shadow-[0_0_4px_rgba(245,158,11,0.5)]'
                 : slotItem.rarity === 'rare'
-                ? 'text-sky-300'
+                ? 'text-sky-300 drop-shadow-[0_0_4px_rgba(56,189,248,0.5)]'
                 : 'text-slate-200'
               : 'text-slate-600 italic'
           }`}
@@ -361,6 +409,7 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
               {player.inventory.map((item, index) => {
                 const isSelected = selectedIndex === index;
                 const isNew = Boolean(item && item.isNew && !inspectedIds.has(item.id));
+                const statDiff = getSlotStatDiff(item);
 
                 return (
                   <button
@@ -375,22 +424,69 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
                       setSelectedIndex(index);
                       setConfirmingDiscard(false);
                     }}
-                    className={`aspect-square rounded-lg border p-1 flex flex-col items-center justify-center transition-all relative ${
+                    className={`aspect-square rounded-xl border p-1 flex flex-col items-center justify-center transition-all relative overflow-hidden group ${
                       isSelected
-                        ? 'border-sky-400 bg-sky-950/50 ring-2 ring-sky-400 shadow-[0_0_12px_rgba(56,189,248,0.4)]'
+                        ? 'border-sky-400 bg-sky-950/60 ring-2 ring-sky-400 shadow-[0_0_14px_rgba(56,189,248,0.45)]'
                         : item
                         ? getRarityColor(item.rarity)
-                        : 'border-slate-800 bg-slate-950/40 hover:border-slate-700'
+                        : 'border-slate-800/80 bg-slate-950/40 hover:border-slate-700'
                     } ${
                       isNew
-                        ? 'ring-1.5 ring-cyan-400/85 border-cyan-400/80 shadow-[0_0_10px_rgba(34,211,238,0.35)] animate-pulse'
+                        ? 'ring-1.5 ring-cyan-400/90 border-cyan-400 shadow-[0_0_10px_rgba(34,211,238,0.4)] animate-pulse'
                         : ''
                     }`}
                   >
+                    {/* Corner Accents for Rare/Legendary items */}
+                    {item?.rarity === 'legendary' && (
+                      <>
+                        <span className="absolute top-1 left-1 w-1 h-1 bg-amber-400 rounded-full shadow-[0_0_4px_#fbbf24] pointer-events-none" />
+                        <span className="absolute top-1 right-1 w-1 h-1 bg-amber-400 rounded-full shadow-[0_0_4px_#fbbf24] pointer-events-none" />
+                        <span className="absolute bottom-1 left-1 w-1 h-1 bg-amber-400 rounded-full shadow-[0_0_4px_#fbbf24] pointer-events-none" />
+                        <span className="absolute bottom-1 right-1 w-1 h-1 bg-amber-400 rounded-full shadow-[0_0_4px_#fbbf24] pointer-events-none" />
+                      </>
+                    )}
+                    {item?.rarity === 'rare' && (
+                      <>
+                        <span className="absolute top-1 left-1 w-1 h-1 bg-cyan-400 rounded-full shadow-[0_0_4px_#22d3ee] pointer-events-none" />
+                        <span className="absolute top-1 right-1 w-1 h-1 bg-cyan-400 rounded-full shadow-[0_0_4px_#22d3ee] pointer-events-none" />
+                      </>
+                    )}
+
+                    {/* Instant Stat Comparison Badge (▲ +4 / ▼ -2) */}
+                    {statDiff && statDiff.diff !== 0 && (
+                      <div
+                        className={`absolute top-1 left-1 flex items-center px-1 py-0.2 rounded text-[8px] font-mono font-black shadow pointer-events-none z-10 ${
+                          statDiff.diff > 0
+                            ? 'bg-emerald-950/95 border border-emerald-500/90 text-emerald-300 shadow-[0_0_8px_rgba(16,185,129,0.5)]'
+                            : 'bg-rose-950/95 border border-rose-500/90 text-rose-300'
+                        }`}
+                        title={`${statDiff.label}: ${statDiff.diff > 0 ? `+${statDiff.diff}` : statDiff.diff} vs equipado`}
+                      >
+                        {statDiff.diff > 0 ? (
+                          <ArrowUp className="w-2.5 h-2.5 mr-0.5 text-emerald-400" />
+                        ) : (
+                          <ArrowDown className="w-2.5 h-2.5 mr-0.5 text-rose-400" />
+                        )}
+                        <span>{statDiff.diff > 0 ? `+${statDiff.diff}` : statDiff.diff}</span>
+                      </div>
+                    )}
+
+                    {/* Consumable badges */}
+                    {item?.type === 'scroll' && (
+                      <span className="absolute top-1 left-1 px-1 rounded bg-amber-950/90 border border-amber-500/80 text-amber-300 text-[7px] font-mono font-bold z-10 pointer-events-none shadow">
+                        PERG
+                      </span>
+                    )}
+                    {item?.type === 'elixir' && (
+                      <span className="absolute top-1 left-1 px-1 rounded bg-purple-950/90 border border-purple-500/80 text-purple-300 text-[7px] font-mono font-bold z-10 pointer-events-none shadow">
+                        ELIX
+                      </span>
+                    )}
+
                     {/* Discrete outline indicator for newly obtained uninspected items (GDD 8.4) */}
                     {isNew && (
                       <span
-                        className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-cyan-400 shadow-[0_0_8px_#22d3ee] border border-black animate-pulse"
+                        className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-cyan-400 shadow-[0_0_8px_#22d3ee] border border-black animate-pulse z-20"
                         title="Item recém-obtido (não inspecionado)"
                       />
                     )}
@@ -401,9 +497,9 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
                         <span
                           className={`text-[9px] sm:text-[10px] font-bold truncate max-w-full text-center px-0.5 leading-tight ${
                             item.rarity === 'legendary'
-                              ? 'text-amber-400'
+                              ? 'text-amber-400 drop-shadow-[0_0_4px_rgba(245,158,11,0.5)]'
                               : item.rarity === 'rare'
-                              ? 'text-sky-300'
+                              ? 'text-sky-300 drop-shadow-[0_0_4px_rgba(56,189,248,0.5)]'
                               : 'text-slate-200'
                           }`}
                           title={item.name}
@@ -429,8 +525,24 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
             {selectedItem ? (
               <div className="flex flex-col gap-3">
                 {/* Header of selected item with High-Res Sprite Icon */}
-                <div className="flex items-start gap-3 bg-slate-950/70 p-2.5 rounded-xl border border-slate-800/90 shadow-inner">
-                  <div className="p-1.5 rounded-xl bg-slate-900 border border-slate-700/80 shadow-md flex items-center justify-center shrink-0">
+                <div
+                  className={`flex items-start gap-3 p-2.5 rounded-xl border shadow-inner transition-all ${
+                    selectedItem.rarity === 'legendary'
+                      ? 'bg-gradient-to-r from-amber-950/40 via-slate-950/80 to-slate-950/90 border-amber-500/70 shadow-[0_0_15px_rgba(245,158,11,0.2)]'
+                      : selectedItem.rarity === 'rare'
+                      ? 'bg-gradient-to-r from-sky-950/40 via-slate-950/80 to-slate-950/90 border-sky-500/70 shadow-[0_0_15px_rgba(56,189,248,0.18)]'
+                      : 'bg-slate-950/80 border-slate-800/90'
+                  }`}
+                >
+                  <div
+                    className={`p-1.5 rounded-xl border shadow-md flex items-center justify-center shrink-0 ${
+                      selectedItem.rarity === 'legendary'
+                        ? 'bg-gradient-to-b from-[#1C1408] to-[#0A0703] border-amber-500/80 shadow-[0_0_10px_rgba(245,158,11,0.4)]'
+                        : selectedItem.rarity === 'rare'
+                        ? 'bg-gradient-to-b from-[#0A1624] to-[#040810] border-sky-500/80 shadow-[0_0_10px_rgba(56,189,248,0.3)]'
+                        : 'bg-slate-900 border-slate-700/80'
+                    }`}
+                  >
                     <ItemIcon item={selectedItem} size={60} showRarityGlow />
                   </div>
                   <div className="flex-1 min-w-0">

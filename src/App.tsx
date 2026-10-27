@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { GameEngine } from './game/engine';
 import { GameRenderer } from './game/renderer';
-import { LevelUpOption } from './game/types';
+import { LevelUpOption, FloorClearSummary, AltarOffer } from './game/types';
 import { soundManager } from './game/audio';
 import { Storage } from './game/storage';
 
@@ -16,6 +16,8 @@ import { PauseModal } from './components/PauseModal';
 import { SettingsModal } from './components/SettingsModal';
 import { SocialShareModal } from './components/SocialShareModal';
 import { HistoryModal } from './components/HistoryModal';
+import { FloorClearedModal } from './components/FloorClearedModal';
+import { AltarModal } from './components/AltarModal';
 
 export default function App() {
   const [gameState, setGameState] = useState<'MENU' | 'PLAYING'>('MENU');
@@ -28,6 +30,8 @@ export default function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isSeedShareOpen, setIsSeedShareOpen] = useState(false);
   const [levelUpChoices, setLevelUpChoices] = useState<LevelUpOption[] | null>(null);
+  const [floorClearSummary, setFloorClearSummary] = useState<FloorClearSummary | null>(null);
+  const [activeAltarOffer, setActiveAltarOffer] = useState<AltarOffer | null>(null);
   const [isDead, setIsDead] = useState(false);
 
   // In-game dynamic toast
@@ -115,15 +119,36 @@ export default function App() {
       showToast(text, type);
     };
 
+    engine.onFloorCleared = (summary) => {
+      setFloorClearSummary(summary);
+    };
+
+    engine.onOpenAltar = (offer) => {
+      setActiveAltarOffer(offer);
+    };
+
+    engine.onBountyCompleted = (bounty) => {
+      showToast(`🏆 Meta Concluída: ${bounty.title}!`, 'rare');
+    };
+
     engineRef.current = engine;
     setIsDead(false);
     setIsPauseOpen(false);
     setIsInventoryOpen(false);
     setLevelUpChoices(null);
+    setFloorClearSummary(null);
+    setActiveAltarOffer(null);
     setGameState('PLAYING');
 
     soundManager.startMusic('explore');
   }, [showToast]);
+
+  const handleAdvanceFloor = useCallback((choice: 'heal' | 'remnants') => {
+    if (engineRef.current) {
+      engineRef.current.advanceToNextFloor(choice);
+    }
+    setFloorClearSummary(null);
+  }, []);
 
   // Main Canvas Render & Physics Loop
   useEffect(() => {
@@ -152,36 +177,45 @@ export default function App() {
 
     lastTimeRef.current = performance.now();
 
+    let hudFrameCount = 0;
+
     const loop = (time: number) => {
-      const dt = Math.min(0.1, (time - lastTimeRef.current) / 1000);
-      lastTimeRef.current = time;
+      try {
+        const dt = Math.min(0.1, (time - lastTimeRef.current) / 1000);
+        lastTimeRef.current = time;
 
-      const engine = engineRef.current;
-      const renderer = rendererRef.current;
+        const engine = engineRef.current;
+        const renderer = rendererRef.current;
 
-      if (engine && renderer) {
-        // Run physics and AI if not paused
-        engine.update(dt);
+        if (engine && renderer) {
+          // Run physics and AI if not paused
+          engine.update(dt);
 
-        // Render current frame
-        renderer.render(
-          engine.dungeon,
-          engine.player,
-          engine.enemies,
-          engine.projectiles,
-          engine.hazardAreas,
-          engine.groundItems,
-          engine.particles,
-          engine.floatingTexts,
-          engine.cameraShake,
-          engine.settings.reducedFlashes
-        );
+          // Render current frame
+          renderer.render(
+            engine.dungeon,
+            engine.player,
+            engine.enemies,
+            engine.projectiles,
+            engine.hazardAreas,
+            engine.groundItems,
+            engine.particles,
+            engine.floatingTexts,
+            engine.cameraShake,
+            engine.settings.reducedFlashes
+          );
+        }
+
+        // Throttle React state update for HUD to reduce DOM reconciliation overhead
+        hudFrameCount++;
+        if (hudFrameCount % 3 === 0) {
+          setTick((t) => (t + 1) % 60);
+        }
+      } catch (loopErr) {
+        console.error('Recoverable game loop exception caught:', loopErr);
+      } finally {
+        animationFrameId.current = requestAnimationFrame(loop);
       }
-
-      // Trigger light state update for React HUD
-      setTick((t) => (t + 1) % 60);
-
-      animationFrameId.current = requestAnimationFrame(loop);
     };
 
     animationFrameId.current = requestAnimationFrame(loop);
@@ -213,6 +247,7 @@ export default function App() {
     };
 
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (floorClearSummary) return;
       if (e.repeat) return;
       keysDown.add(e.code);
 
@@ -230,15 +265,15 @@ export default function App() {
       if (e.code === 'Digit3') engineRef.current?.triggerSkill(2);
       if (e.code === 'Digit4') engineRef.current?.triggerSkill(3);
 
-      if (e.code === 'KeyQ') {
+      if (e.code === 'KeyQ' && !e.repeat) {
         engineRef.current?.usePotion();
       }
 
-      if (e.code === 'KeyE') {
+      if (e.code === 'KeyE' && !e.repeat) {
         engineRef.current?.useFirstScroll();
       }
 
-      if (e.code === 'KeyR') {
+      if (e.code === 'KeyR' && !e.repeat) {
         engineRef.current?.useFirstElixir();
       }
 
@@ -267,7 +302,7 @@ export default function App() {
     };
 
     const handleMouseDown = (e: MouseEvent) => {
-      if (e.button === 0 && !isPauseOpen && !isInventoryOpen && !levelUpChoices) {
+      if (e.button === 0 && !isPauseOpen && !isInventoryOpen && !levelUpChoices && !floorClearSummary) {
         engineRef.current?.setAttackPressed(true);
       }
     };
@@ -289,7 +324,7 @@ export default function App() {
       window.removeEventListener('mousedown', handleMouseDown);
       window.removeEventListener('mouseup', handleMouseUp);
     };
-  }, [gameState, isPauseOpen, isInventoryOpen, levelUpChoices]);
+  }, [gameState, isPauseOpen, isInventoryOpen, levelUpChoices, floorClearSummary]);
 
   const engine = engineRef.current;
 
@@ -319,6 +354,10 @@ export default function App() {
             dungeon={engine.dungeon}
             seed={engine.seed}
             floor={engine.currentFloorNumber}
+            comboCount={engine.comboCount}
+            comboTimer={engine.comboTimer}
+            maxComboTimer={engine.maxComboTimer}
+            currentBounty={engine.currentBounty}
             onPause={() => {
               engine.isPaused = true;
               setIsPauseOpen(true);
@@ -388,6 +427,29 @@ export default function App() {
           onSelect={(option) => {
             engine.applyLevelUpChoice(option);
             setLevelUpChoices(null);
+          }}
+        />
+      )}
+
+      {/* 4.5 Floor Cleared Fanfare Modal */}
+      {floorClearSummary && engine && (
+        <FloorClearedModal
+          summary={floorClearSummary}
+          onContinue={handleAdvanceFloor}
+        />
+      )}
+
+      {/* 4.6 Void Pact Altar Modal (Item 5) */}
+      {activeAltarOffer && engine && (
+        <AltarModal
+          offer={activeAltarOffer}
+          onAccept={(pact) => {
+            engine.applyVoidPact(pact);
+            setActiveAltarOffer(null);
+          }}
+          onDecline={() => {
+            engine.declineVoidPact();
+            setActiveAltarOffer(null);
           }}
         />
       )}

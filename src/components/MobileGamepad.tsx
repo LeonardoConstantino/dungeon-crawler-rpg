@@ -1,6 +1,6 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { PlayerState } from '../game/types';
-import { Shield, Heart, Sword, Zap, Sparkles } from 'lucide-react';
+import { Shield, Heart, Sword, Zap, Sparkles, Swords, Flame } from 'lucide-react';
 import { soundManager } from '../game/audio';
 import { ItemIcon } from './ItemIcon';
 
@@ -144,6 +144,39 @@ export const MobileGamepad: React.FC<MobileGamepadProps> = ({
   );
   const quickConsumable = quickConsumableIndex !== -1 ? player.inventory[quickConsumableIndex] : null;
 
+  // Radial cooldown indicator ring
+  const renderCooldownRing = (currentCooldown: number, maxCooldown: number, size = 48) => {
+    if (currentCooldown <= 0) return null;
+    const r = (size - 6) / 2;
+    const circumference = 2 * Math.PI * r;
+    const progress = Math.max(0, Math.min(1, currentCooldown / Math.max(0.1, maxCooldown)));
+    const strokeDashoffset = circumference * (1 - progress);
+
+    return (
+      <svg className="absolute inset-0 w-full h-full -rotate-90 pointer-events-none" viewBox={`0 0 ${size} ${size}`}>
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={r}
+          fill="rgba(5, 7, 13, 0.78)"
+          stroke="rgba(30, 41, 59, 0.6)"
+          strokeWidth="3.5"
+        />
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={r}
+          fill="none"
+          stroke="#F59E0B"
+          strokeWidth="3.5"
+          strokeDasharray={circumference}
+          strokeDashoffset={strokeDashoffset}
+          strokeLinecap="round"
+        />
+      </svg>
+    );
+  };
+
   return (
     <div
       className="fixed inset-x-0 bottom-0 pointer-events-none select-none z-20 flex justify-between items-end touch-none"
@@ -154,7 +187,7 @@ export const MobileGamepad: React.FC<MobileGamepadProps> = ({
         paddingRight: 'max(0.75rem, env(safe-area-inset-right, 0px))',
       }}
     >
-      {/* Left: Dynamic Touch Joystick Zone (Sized cleanly for phones & tablets) */}
+      {/* Left: Dynamic Touch Joystick Zone with Arcane Runic Theme */}
       <div
         ref={joystickZoneRef}
         onTouchStart={handleTouchStart}
@@ -170,7 +203,7 @@ export const MobileGamepad: React.FC<MobileGamepadProps> = ({
         {/* Active Floating Stick or Idle Indicator */}
         {joystickActive ? (
           <div
-            className="absolute rounded-full border border-sky-400/40 bg-slate-950/60 pointer-events-none transition-transform shadow-2xl backdrop-blur-xs"
+            className="absolute rounded-full border border-cyan-400/50 bg-[#070B14]/85 pointer-events-none transition-transform shadow-[0_0_24px_rgba(6,182,212,0.3)] ring-1 ring-cyan-500/30 backdrop-blur-sm"
             style={{
               left: stickOrigin.x - radius,
               top: stickOrigin.y - radius,
@@ -178,25 +211,52 @@ export const MobileGamepad: React.FC<MobileGamepadProps> = ({
               height: radius * 2,
             }}
           >
-            {/* Guide Crosshairs */}
-            <div className="absolute inset-x-2 top-1/2 h-[1px] bg-slate-700/40 -translate-y-1/2" />
-            <div className="absolute inset-y-2 left-1/2 w-[1px] bg-slate-700/40 -translate-x-1/2" />
+            {/* Concentric Runic Circles */}
+            <div className="absolute inset-2 rounded-full border border-slate-700/50" />
+            <div className="absolute inset-5 rounded-full border border-dashed border-cyan-500/25" />
 
-            {/* Inner Thumb Knob */}
+            {/* Guide Crosshairs & Runic Diamond Ticks */}
+            <div className="absolute inset-x-2 top-1/2 h-[1px] bg-cyan-500/30 -translate-y-1/2" />
+            <div className="absolute inset-y-2 left-1/2 w-[1px] bg-cyan-500/30 -translate-x-1/2" />
+            <span className="absolute top-0.5 left-1/2 -translate-x-1/2 text-[8px] text-cyan-400/70 font-mono">✦</span>
+            <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 text-[8px] text-cyan-400/70 font-mono">✦</span>
+            <span className="absolute left-1 top-1/2 -translate-y-1/2 text-[8px] text-cyan-400/70 font-mono">✦</span>
+            <span className="absolute right-1 top-1/2 -translate-y-1/2 text-[8px] text-cyan-400/70 font-mono">✦</span>
+
+            {/* Glowing connecting beam from center to knob */}
+            <svg className="absolute inset-0 w-full h-full pointer-events-none">
+              <line
+                x1={radius}
+                y1={radius}
+                x2={radius + stickPos.x}
+                y2={radius + stickPos.y}
+                stroke="#22D3EE"
+                strokeWidth="2"
+                strokeOpacity="0.4"
+                strokeDasharray="3 3"
+              />
+            </svg>
+
+            {/* Inner Thumb Knob (Arcane Core) */}
             <div
-              className="absolute w-12 h-12 rounded-full bg-gradient-to-br from-slate-200 to-slate-400 border-2 border-white/80 shadow-2xl flex items-center justify-center transition-transform"
+              className="absolute w-13 h-13 rounded-full bg-gradient-to-br from-slate-900 via-[#0B1528] to-cyan-950 border-2 border-cyan-400 shadow-[0_0_20px_rgba(34,211,238,0.7)] flex items-center justify-center transition-transform"
               style={{
-                left: radius - 24 + stickPos.x,
-                top: radius - 24 + stickPos.y,
+                left: radius - 26 + stickPos.x,
+                top: radius - 26 + stickPos.y,
               }}
             >
-              <div className="w-4 h-4 rounded-full bg-sky-600/70" />
+              {/* Inner glowing core gem */}
+              <div className="w-5 h-5 rounded-full bg-gradient-to-tr from-cyan-400 to-sky-200 shadow-[0_0_8px_#38bdf8] flex items-center justify-center">
+                <div className="w-1.5 h-1.5 rounded-full bg-slate-950" />
+              </div>
             </div>
           </div>
         ) : (
-          <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-full border border-dashed border-slate-600/50 bg-[#0B0F18]/50 flex flex-col items-center justify-center backdrop-blur-xs">
-            <span className="text-[10px] font-mono text-slate-400 uppercase tracking-wider font-semibold">Mover</span>
-            <span className="text-[8px] font-mono text-slate-500 mt-0.5">Toque & Arraste</span>
+          <div className="w-24 h-24 sm:w-28 sm:h-28 rounded-full border border-slate-700/70 bg-[#070B14]/70 flex flex-col items-center justify-center backdrop-blur-sm shadow-xl ring-1 ring-cyan-500/20 group">
+            <div className="w-16 h-16 rounded-full border border-dashed border-cyan-500/30 flex flex-col items-center justify-center">
+              <span className="text-cyan-400 text-xs font-mono font-bold animate-pulse">✦</span>
+              <span className="text-[9px] font-cinzel text-slate-300 uppercase tracking-widest font-bold mt-0.5">Mover</span>
+            </div>
           </div>
         )}
       </div>
@@ -269,7 +329,7 @@ export const MobileGamepad: React.FC<MobileGamepadProps> = ({
                 ? 'bg-slate-900 border-slate-800 text-slate-600'
                 : isLowHp
                 ? 'bg-rose-900 border-rose-500 text-rose-200 animate-pulse ring-2 ring-rose-500'
-                : 'bg-rose-950/80 border-rose-700 text-rose-300'
+                : 'bg-rose-950/80 border-rose-700 text-rose-300 shadow-[0_0_12px_rgba(244,63,94,0.3)]'
             }`}
             title="Beber Frasco de Sangue Frio"
           >
@@ -282,7 +342,7 @@ export const MobileGamepad: React.FC<MobileGamepadProps> = ({
 
         {/* 4 Skills in Arc + Primary Attack Button */}
         <div className="relative w-40 h-40 sm:w-48 sm:h-48">
-          {/* Skill 1 (Cleave) - Top Right */}
+          {/* Skill 1 (Cleave / Talho) - Top Right */}
           <button
             onTouchStart={(e) => {
               e.preventDefault();
@@ -294,23 +354,24 @@ export const MobileGamepad: React.FC<MobileGamepadProps> = ({
             }}
             onTouchCancel={(e) => e.preventDefault()}
             disabled={player.skills[0]?.currentCooldown > 0}
-            className={`absolute top-0 right-12 sm:right-16 w-11 h-11 sm:w-12 sm:h-12 rounded-full border flex items-center justify-center text-xs font-bold font-mono shadow-md active:scale-90 transition-all ${
+            className={`absolute top-0 right-12 sm:right-16 w-11 h-11 sm:w-12 sm:h-12 rounded-full border flex items-center justify-center text-xs font-bold font-mono shadow-md active:scale-90 transition-all overflow-hidden relative ${
               player.skills[0]?.currentCooldown > 0
                 ? 'bg-slate-900 border-slate-800 text-slate-600'
-                : 'bg-slate-800 border-slate-600 text-slate-200 active:bg-slate-700'
+                : 'bg-gradient-to-tr from-slate-950 via-slate-900 to-amber-950/80 border-amber-500/80 text-amber-200 shadow-[0_0_12px_rgba(245,158,11,0.35)] ring-1 ring-amber-400/40'
             }`}
             title={player.skills[0]?.name}
           >
+            {renderCooldownRing(player.skills[0]?.currentCooldown || 0, player.skills[0]?.cooldown || 1, 48)}
             {player.skills[0]?.currentCooldown > 0 ? (
-              <span className="text-[10px] text-amber-400 font-mono">
+              <span className="text-[10px] text-amber-300 font-mono font-bold relative z-10">
                 {player.skills[0].currentCooldown.toFixed(1)}
               </span>
             ) : (
-              'I'
+              <Swords className="w-5 h-5 text-amber-300 relative z-10" />
             )}
           </button>
 
-          {/* Skill 2 (Dash) - Top Left */}
+          {/* Skill 2 (Dash / Investida) - Top Left */}
           <button
             onTouchStart={(e) => {
               e.preventDefault();
@@ -322,23 +383,24 @@ export const MobileGamepad: React.FC<MobileGamepadProps> = ({
             }}
             onTouchCancel={(e) => e.preventDefault()}
             disabled={player.skills[1]?.currentCooldown > 0}
-            className={`absolute top-4 left-3 sm:top-5 sm:left-4 w-11 h-11 sm:w-12 sm:h-12 rounded-full border flex items-center justify-center text-xs font-bold font-mono shadow-md active:scale-90 transition-all ${
+            className={`absolute top-4 left-3 sm:top-5 sm:left-4 w-11 h-11 sm:w-12 sm:h-12 rounded-full border flex items-center justify-center text-xs font-bold font-mono shadow-md active:scale-90 transition-all overflow-hidden relative ${
               player.skills[1]?.currentCooldown > 0
                 ? 'bg-slate-900 border-slate-800 text-slate-600'
-                : 'bg-slate-800 border-slate-600 text-slate-200 active:bg-slate-700'
+                : 'bg-gradient-to-tr from-slate-950 via-slate-900 to-cyan-950/80 border-cyan-500/80 text-cyan-200 shadow-[0_0_12px_rgba(6,182,212,0.35)] ring-1 ring-cyan-400/40'
             }`}
             title={player.skills[1]?.name}
           >
+            {renderCooldownRing(player.skills[1]?.currentCooldown || 0, player.skills[1]?.cooldown || 1, 48)}
             {player.skills[1]?.currentCooldown > 0 ? (
-              <span className="text-[10px] text-amber-400 font-mono">
+              <span className="text-[10px] text-amber-300 font-mono font-bold relative z-10">
                 {player.skills[1].currentCooldown.toFixed(1)}
               </span>
             ) : (
-              'II'
+              <Zap className="w-5 h-5 text-cyan-300 relative z-10" />
             )}
           </button>
 
-          {/* Skill 3 (Pulse) - Mid Left */}
+          {/* Skill 3 (Pulse / Pulso) - Mid Left */}
           <button
             onTouchStart={(e) => {
               e.preventDefault();
@@ -350,23 +412,24 @@ export const MobileGamepad: React.FC<MobileGamepadProps> = ({
             }}
             onTouchCancel={(e) => e.preventDefault()}
             disabled={player.skills[2]?.currentCooldown > 0}
-            className={`absolute bottom-12 left-0 sm:bottom-14 sm:left-0 w-11 h-11 sm:w-12 sm:h-12 rounded-full border flex items-center justify-center text-xs font-bold font-mono shadow-md active:scale-90 transition-all ${
+            className={`absolute bottom-12 left-0 sm:bottom-14 sm:left-0 w-11 h-11 sm:w-12 sm:h-12 rounded-full border flex items-center justify-center text-xs font-bold font-mono shadow-md active:scale-90 transition-all overflow-hidden relative ${
               player.skills[2]?.currentCooldown > 0
                 ? 'bg-slate-900 border-slate-800 text-slate-600'
-                : 'bg-slate-800 border-slate-600 text-slate-200 active:bg-slate-700'
+                : 'bg-gradient-to-tr from-slate-950 via-slate-900 to-purple-950/80 border-purple-500/80 text-purple-200 shadow-[0_0_12px_rgba(168,85,247,0.35)] ring-1 ring-purple-400/40'
             }`}
             title={player.skills[2]?.name}
           >
+            {renderCooldownRing(player.skills[2]?.currentCooldown || 0, player.skills[2]?.cooldown || 1, 48)}
             {player.skills[2]?.currentCooldown > 0 ? (
-              <span className="text-[10px] text-amber-400 font-mono">
+              <span className="text-[10px] text-amber-300 font-mono font-bold relative z-10">
                 {player.skills[2].currentCooldown.toFixed(1)}
               </span>
             ) : (
-              'III'
+              <Sparkles className="w-5 h-5 text-purple-300 relative z-10" />
             )}
           </button>
 
-          {/* Skill 4 (Shield) - Bottom Left */}
+          {/* Skill 4 (Shield / Escudo) - Bottom Left */}
           <button
             onTouchStart={(e) => {
               e.preventDefault();
@@ -378,28 +441,29 @@ export const MobileGamepad: React.FC<MobileGamepadProps> = ({
             }}
             onTouchCancel={(e) => e.preventDefault()}
             disabled={player.skills[3]?.currentCooldown > 0}
-            className={`absolute bottom-0 left-9 sm:bottom-0 sm:left-12 w-11 h-11 sm:w-12 sm:h-12 rounded-full border flex items-center justify-center text-xs font-bold font-mono shadow-md active:scale-90 transition-all ${
+            className={`absolute bottom-0 left-9 sm:bottom-0 sm:left-12 w-11 h-11 sm:w-12 sm:h-12 rounded-full border flex items-center justify-center text-xs font-bold font-mono shadow-md active:scale-90 transition-all overflow-hidden relative ${
               player.skills[3]?.currentCooldown > 0
                 ? 'bg-slate-900 border-slate-800 text-slate-600'
-                : 'bg-slate-800 border-slate-600 text-slate-200 active:bg-slate-700'
+                : 'bg-gradient-to-tr from-slate-950 via-slate-900 to-emerald-950/80 border-emerald-500/80 text-emerald-200 shadow-[0_0_12px_rgba(16,185,129,0.35)] ring-1 ring-emerald-400/40'
             }`}
             title={player.skills[3]?.name}
           >
+            {renderCooldownRing(player.skills[3]?.currentCooldown || 0, player.skills[3]?.cooldown || 1, 48)}
             {player.skills[3]?.currentCooldown > 0 ? (
-              <span className="text-[10px] text-amber-400 font-mono">
+              <span className="text-[10px] text-amber-300 font-mono font-bold relative z-10">
                 {player.skills[3].currentCooldown.toFixed(1)}
               </span>
             ) : (
-              'IV'
+              <Shield className="w-5 h-5 text-emerald-300 relative z-10" />
             )}
           </button>
 
-          {/* Primary Attack Button (Center-Right large) */}
+          {/* Primary Attack Button (Center-Right large with Runic styling) */}
           <button
             onTouchStart={(e) => {
               e.preventDefault();
               setIsAttackPressed(true);
-              triggerHaptic(12);
+              triggerHaptic(14);
               onAttack(true);
             }}
             onTouchEnd={(e) => {
@@ -413,15 +477,28 @@ export const MobileGamepad: React.FC<MobileGamepadProps> = ({
               onAttack(false);
             }}
             onContextMenu={(e) => e.preventDefault()}
-            className={`absolute bottom-1 right-1 w-20 h-20 sm:w-24 sm:h-24 rounded-full flex flex-col items-center justify-center shadow-2xl transition-transform ${
+            className={`absolute bottom-1 right-1 w-20 h-20 sm:w-24 sm:h-24 rounded-full flex flex-col items-center justify-center shadow-2xl transition-all duration-75 relative overflow-hidden ${
               isAttackPressed
-                ? 'bg-rose-700 border-3 border-amber-300 scale-95 ring-4 ring-rose-500/50'
-                : 'bg-gradient-to-tr from-rose-900 via-rose-800 to-rose-700 border-2 border-rose-500'
+                ? 'bg-gradient-to-tr from-rose-600 via-red-500 to-amber-500 border-2 border-amber-300 scale-90 ring-4 ring-rose-400 shadow-[0_0_30px_rgba(244,63,94,0.85)]'
+                : 'bg-gradient-to-tr from-[#1E0911] via-rose-950 to-rose-900 border-2 border-rose-500/90 shadow-[0_0_22px_rgba(244,63,94,0.45)] ring-2 ring-rose-400/30'
             }`}
             title="Golpear (Segure para ataque contínuo)"
           >
-            <Sword className="w-8 h-8 text-rose-100" />
-            <span className="text-[10px] font-mono tracking-wider uppercase font-bold mt-0.5 text-white">Golpear</span>
+            {/* Concentric etched inner ring */}
+            <div className="absolute inset-1.5 rounded-full border border-rose-400/25 pointer-events-none" />
+
+            <Sword
+              className={`w-8 h-8 transition-transform duration-75 ${
+                isAttackPressed ? 'scale-110 -rotate-12 text-amber-100 drop-shadow-[0_0_8px_#fbbf24]' : 'text-rose-100'
+              }`}
+            />
+            <span
+              className={`text-[9px] sm:text-[10px] font-mono tracking-wider uppercase font-extrabold mt-0.5 transition-colors ${
+                isAttackPressed ? 'text-amber-100' : 'text-white'
+              }`}
+            >
+              Golpear
+            </span>
           </button>
         </div>
       </div>

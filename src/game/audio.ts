@@ -329,6 +329,109 @@ class SoundEngine {
     }
   }
 
+  public playFloorClear() {
+    this.initContext();
+    if (!this.ctx || !this.sfxGain || this.settings.isMuted) return;
+
+    const t = this.ctx.currentTime;
+    // Triumphant 4-note ascending chord (C4, E4, G4, C5)
+    const notes = [261.6, 329.6, 392.0, 523.2];
+    notes.forEach((freq, idx) => {
+      if (!this.ctx || !this.sfxGain) return;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(freq, t + idx * 0.1);
+
+      gain.gain.setValueAtTime(0.2, t + idx * 0.1);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.65 + idx * 0.1);
+
+      osc.connect(gain);
+      gain.connect(this.sfxGain);
+      osc.start(t + idx * 0.1);
+      osc.stop(t + 0.7 + idx * 0.1);
+    });
+  }
+
+  public playComboKill(combo: number) {
+    this.initContext();
+    if (!this.ctx || !this.sfxGain || this.settings.isMuted) return;
+
+    const t = this.ctx.currentTime;
+    // Escalating pitch based on streak (A3 to C6)
+    const baseFreq = Math.min(880, 220 + Math.min(15, combo) * 35);
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+
+    osc.type = combo >= 5 ? 'sawtooth' : 'triangle';
+    osc.frequency.setValueAtTime(baseFreq, t);
+    osc.frequency.exponentialRampToValueAtTime(baseFreq * 1.3, t + 0.12);
+
+    gain.gain.setValueAtTime(0.25, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.16);
+
+    osc.connect(gain);
+    gain.connect(this.sfxGain);
+
+    osc.start(t);
+    osc.stop(t + 0.18);
+  }
+
+  public playAltarPact() {
+    this.initContext();
+    if (!this.ctx || !this.sfxGain || this.settings.isMuted) return;
+
+    const t = this.ctx.currentTime;
+    // Ominous sub saw drone with bell
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(82.4, t);
+    osc.frequency.exponentialRampToValueAtTime(45, t + 0.75);
+
+    gain.gain.setValueAtTime(0.3, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.8);
+
+    osc.connect(gain);
+    gain.connect(this.sfxGain);
+    osc.start(t);
+    osc.stop(t + 0.85);
+
+    [587.3, 739.9, 880].forEach((freq, idx) => {
+      if (!this.ctx || !this.sfxGain) return;
+      const o = this.ctx.createOscillator();
+      const g = this.ctx.createGain();
+      o.type = 'sine';
+      o.frequency.setValueAtTime(freq, t + 0.08 + idx * 0.07);
+      g.gain.setValueAtTime(0.18, t + 0.08 + idx * 0.07);
+      g.gain.exponentialRampToValueAtTime(0.001, t + 0.65);
+      o.connect(g);
+      g.connect(this.sfxGain);
+      o.start(t + 0.08 + idx * 0.07);
+      o.stop(t + 0.7);
+    });
+  }
+
+  public playBountyComplete() {
+    this.initContext();
+    if (!this.ctx || !this.sfxGain || this.settings.isMuted) return;
+
+    const t = this.ctx.currentTime;
+    [523.25, 659.25, 783.99, 1046.5].forEach((freq, idx) => {
+      if (!this.ctx || !this.sfxGain) return;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(freq, t + idx * 0.07);
+      gain.gain.setValueAtTime(0.24, t + idx * 0.07);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.6 + idx * 0.07);
+      osc.connect(gain);
+      gain.connect(this.sfxGain);
+      osc.start(t + idx * 0.07);
+      osc.stop(t + 0.65 + idx * 0.07);
+    });
+  }
+
   public playStairDescent() {
     this.initContext();
     if (!this.ctx || !this.sfxGain || this.settings.isMuted) return;

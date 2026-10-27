@@ -7,6 +7,10 @@ import {
   DungeonFloor,
   Enemy,
   FloatingText,
+  FloorClearSummary,
+  FloorBounty,
+  VoidPact,
+  AltarOffer,
   GameSettings,
   GroundItem,
   HazardArea,
@@ -41,7 +45,24 @@ export class GameEngine {
   public cameraShake = { x: 0, y: 0 };
   public runStartTime = Date.now();
   public enemiesKilledCount = 0;
+  public floorEnemiesKilledCount = 0;
+  public totalFloorEnemies = 0;
   public abyssRemnantsEarned = 0;
+  public floorClearTriggered = false;
+
+  // Item 4: Combo & Kill Streak System
+  public comboCount = 0;
+  public comboTimer = 0;
+  public maxComboTimer = 3.5;
+  public highestComboRun = 0;
+
+  // Item 5: Altar of the Void Pacts
+  public activeAltarOffer: AltarOffer | null = null;
+  public onOpenAltar?: (offer: AltarOffer) => void;
+
+  // Item 6: Floor Bounties / Metas do Andar
+  public currentBounty: FloorBounty | null = null;
+  public onBountyCompleted?: (bounty: FloorBounty) => void;
 
   // Real-time Floor Abyss Hunger state
   public floorHungerFrozenTimer = 0;
@@ -52,6 +73,7 @@ export class GameEngine {
   public onLevelUp?: (options: LevelUpOption[]) => void;
   public onPlayerDeath?: () => void;
   public onFloorChange?: (floor: number) => void;
+  public onFloorCleared?: (summary: FloorClearSummary) => void;
   public onMessage?: (text: string, type: 'info' | 'rare' | 'danger') => void;
 
   private moveInput = { x: 0, y: 0 };
@@ -332,12 +354,25 @@ export class GameEngine {
     // Recalculate initial vision
     updateFogOfWar(this.dungeon, this.player.x, this.player.y, this.player.stats.visionRadius);
 
-    // Reset floor hunger timers for fresh floor
+    // Reset floor hunger timers and counters for fresh floor
     this.floorHungerFrozenTimer = 0;
     this.abyssDamageTickTimer = 0;
     this.lastAnnouncedHungerStage = 0;
     this.dungeon.floorTimer = 0;
     this.dungeon.isHungerFrozen = false;
+    this.floorEnemiesKilledCount = 0;
+    this.totalFloorEnemies = enemies.length;
+    this.floorClearTriggered = false;
+
+    // Item 4: Reset combo for fresh floor
+    this.comboCount = 0;
+    this.comboTimer = 0;
+
+    // Item 6: Generate Floor Bounty
+    this.currentBounty = this.generateFloorBounty(floorNum, enemies);
+    if (this.currentBounty && this.onMessage) {
+      this.onMessage(`🎯 Meta do Andar: ${this.currentBounty.title} (${this.currentBounty.description})`, 'rare');
+    }
 
     if (this.onFloorChange) {
       this.onFloorChange(floorNum);
@@ -423,16 +458,18 @@ export class GameEngine {
 
           this.damageEnemy(enemy, finalDmg, isCrit);
 
-          // Knockback
-          enemy.x += Math.cos(enemyAngle) * 0.35;
-          enemy.y += Math.sin(enemyAngle) * 0.35;
+          // Smooth knockback with wall collision check
+          const kx = enemy.x + Math.cos(enemyAngle) * 0.18;
+          const ky = enemy.y + Math.sin(enemyAngle) * 0.18;
+          if (!this.isTileWall(kx, enemy.y)) enemy.x = kx;
+          if (!this.isTileWall(enemy.x, ky)) enemy.y = ky;
+
+          if (isCrit) {
+            this.triggerScreenShake(2.5);
+          }
         }
       }
     });
-
-    if (hitAny) {
-      this.triggerScreenShake(4);
-    }
   }
 
   public triggerSkill(index: number) {
@@ -455,7 +492,7 @@ export class GameEngine {
         const dist = Math.hypot(enemy.x - this.player.x, enemy.y - this.player.y);
         if (dist <= cleaveRadius) {
           const dmg = Math.round(this.player.stats.baseAttack * skill.damageMultiplier);
-          this.damageEnemy(enemy, dmg, true);
+          this.damageEnemy(enemy, dmg, true, true);
         }
       });
       this.triggerScreenShake(7);
@@ -482,7 +519,7 @@ export class GameEngine {
         const dist = Math.hypot(enemy.x - this.player.x, enemy.y - this.player.y);
         if (dist <= 1.8) {
           const dmg = Math.round(this.player.stats.baseAttack * skill.damageMultiplier);
-          this.damageEnemy(enemy, dmg, false);
+          this.damageEnemy(enemy, dmg, false, true);
         }
       });
     } else if (skill.id === 'pulse') {
@@ -499,7 +536,7 @@ export class GameEngine {
 
         if (dist <= radius) {
           const dmg = Math.round(this.player.stats.baseAttack * skill.damageMultiplier);
-          this.damageEnemy(enemy, dmg, true);
+          this.damageEnemy(enemy, dmg, true, true);
 
           // Push enemies back outward
           const pushAngle = Math.atan2(dy, dx);
@@ -569,11 +606,21 @@ export class GameEngine {
   public update(dt: number) {
     if (this.isPaused || this.isGameOver) return;
 
+    // Decay hit-flash feedback on player and enemies
+    if (this.player.hitFlashTimer && this.player.hitFlashTimer > 0) {
+      this.player.hitFlashTimer = Math.max(0, this.player.hitFlashTimer - dt);
+    }
+    this.enemies.forEach((e) => {
+      if (e.hitFlashTimer && e.hitFlashTimer > 0) {
+        e.hitFlashTimer = Math.max(0, e.hitFlashTimer - dt);
+      }
+    });
+
     // Decay screen shake
     this.cameraShake.x *= 0.85;
     this.cameraShake.y *= 0.85;
 
-    // 0. Update Floor Real-Time Timer & Abyss Hunger
+    // 1. Update Floor Real-Time Timer & Abyss Hunger
     if (this.floorHungerFrozenTimer > 0) {
       this.floorHungerFrozenTimer -= dt;
       this.dungeon.isHungerFrozen = true;
@@ -637,8 +684,24 @@ export class GameEngine {
       }
     }
 
-    // 1. Update Player Movement
-    const speed = this.player.stats.baseSpeed;
+    // Item 4: Combo timer decay
+    if (this.comboTimer > 0) {
+      this.comboTimer -= dt;
+      if (this.comboTimer <= 0) {
+        this.comboCount = 0;
+        this.comboTimer = 0;
+      }
+    }
+
+    // High combo streak visual particles following the player
+    if (this.comboCount >= 3 && Math.random() < 0.3) {
+      const col = this.comboCount >= 8 ? '#C084FC' : this.comboCount >= 5 ? '#F97316' : '#38BDF8';
+      this.createParticles(this.player.x, this.player.y + 0.2, col, 1);
+    }
+
+    // 1. Update Player Movement (Speed scales up to +20% during kill streaks)
+    const comboSpeedMultiplier = this.comboCount >= 3 ? 1 + Math.min(0.20, this.comboCount * 0.02) : 1.0;
+    const speed = this.player.stats.baseSpeed * comboSpeedMultiplier;
     const moveX = this.moveInput.x * speed * dt;
     const moveY = this.moveInput.y * speed * dt;
 
@@ -720,13 +783,14 @@ export class GameEngine {
     const currentTile = this.dungeon.tiles[pTileY]?.[pTileX];
 
     if (currentTile === TileType.STAIRS_DOWN) {
-      // Descend floor
-      this.loadFloor(this.currentFloorNumber + 1);
+      this.handleStairsTrigger();
       return;
     } else if (currentTile === TileType.CHEST_CLOSED) {
       this.openChest(pTileX, pTileY);
     } else if (currentTile === TileType.FISSURE) {
       this.interactFissure(pTileX, pTileY);
+    } else if (currentTile === TileType.ALTAR) {
+      this.interactAltar(pTileX, pTileY);
     }
 
     // 4. Update Hazard Areas
@@ -857,12 +921,36 @@ export class GameEngine {
             if (!this.isTileWall(nx, ny)) {
               enemy.x = nx;
               enemy.y = ny;
+              // Incendiary ember drop trail
+              if (enemy.isElite && enemy.affix === 'incendiary' && Math.random() < 0.04) {
+                this.hazardAreas.push({
+                  id: `ember-${Date.now()}-${Math.random()}`,
+                  x: enemy.x,
+                  y: enemy.y,
+                  radius: 0.65,
+                  maxTimer: 2.8,
+                  timer: 0,
+                  damage: Math.max(3, Math.round(effectiveAttack * 0.35)),
+                  exploded: false,
+                  color: '#F97316',
+                });
+              } else if (enemy.isElite && enemy.affix === 'swift' && Math.random() < 0.15) {
+                this.createParticles(enemy.x, enemy.y, '#38BDF8', 1);
+              }
             }
           } else if (enemy.attackCooldown <= 0) {
             // Melee strike
             enemy.attackCooldown = enemy.maxAttackCooldown;
             this.damagePlayer(effectiveAttack);
             soundManager.playEnemyAlert(enemy.type);
+
+            // Vampiric affix life steal
+            if (enemy.isElite && enemy.affix === 'vampiric') {
+              const leech = Math.max(2, Math.round(effectiveAttack * 0.4));
+              enemy.hp = Math.min(enemy.maxHp, enemy.hp + leech);
+              this.addFloatingText(enemy.x, enemy.y - 0.5, `+${leech} HP`, '#10B981');
+              this.createParticles(enemy.x, enemy.y, '#10B981', 8);
+            }
           }
         }
       }
@@ -892,21 +980,98 @@ export class GameEngine {
     this.floatingTexts = this.floatingTexts.filter((ft) => ft.lifetime > 0);
   }
 
-  public damageEnemy(enemy: Enemy, damage: number, isCrit = false) {
+  public damageEnemy(enemy: Enemy, damage: number, isCrit = false, isSkill = false) {
     enemy.hp -= damage;
+    enemy.hitFlashTimer = isCrit ? 0.12 : 0.08;
     soundManager.playHit(isCrit);
 
     this.addFloatingText(enemy.x, enemy.y - 0.5, `-${damage}`, isCrit ? '#F59E0B' : '#FFFFFF', isCrit);
     this.createParticles(enemy.x, enemy.y, isCrit ? '#F59E0B' : '#EF4444', isCrit ? 10 : 5);
 
     if (enemy.hp <= 0) {
-      this.killEnemy(enemy);
+      this.killEnemy(enemy, isSkill);
     }
   }
 
-  private killEnemy(enemy: Enemy) {
+  private killEnemy(enemy: Enemy, wasSkill = false) {
     this.enemiesKilledCount++;
+    this.floorEnemiesKilledCount++;
     this.addXp(enemy.xpReward);
+
+    // Item 4: Escalating Combo & Kill Streak System
+    this.comboCount++;
+    this.comboTimer = this.maxComboTimer;
+    if (this.comboCount > this.highestComboRun) {
+      this.highestComboRun = this.comboCount;
+    }
+    soundManager.playComboKill(this.comboCount);
+
+    if (this.comboCount === 3) {
+      this.addFloatingText(this.player.x, this.player.y - 0.8, 'COMBO x3 (+15 XP)', '#38BDF8');
+      this.addXp(15);
+      this.createParticles(this.player.x, this.player.y, '#38BDF8', 8);
+    } else if (this.comboCount === 5) {
+      this.addFloatingText(this.player.x, this.player.y - 0.8, '🔥 CHACINA x5! (+35 XP / +3 Vestígios)', '#F59E0B', true);
+      this.addXp(35);
+      this.abyssRemnantsEarned += 3;
+      Storage.addAbyssRemnants(3);
+      this.triggerScreenShake(2.5);
+      this.createParticles(this.player.x, this.player.y, '#F59E0B', 16);
+      if (this.onMessage) this.onMessage('CHACINA! Seu frenesi atrai poder do Abismo (+5% Vel)', 'rare');
+    } else if (this.comboCount === 8) {
+      this.addFloatingText(this.player.x, this.player.y - 0.8, '⚡ MASSACRE x8! (+75 XP / +6 Vestígios)', '#F97316', true);
+      this.addXp(75);
+      this.abyssRemnantsEarned += 6;
+      Storage.addAbyssRemnants(6);
+      this.triggerScreenShake(3);
+      this.createParticles(this.player.x, this.player.y, '#F97316', 22);
+    } else if (this.comboCount >= 10 && this.comboCount % 5 === 0) {
+      this.addFloatingText(this.player.x, this.player.y - 0.8, `💀 FRENESI x${this.comboCount}! (+150 XP / +12 Vestígios)`, '#C084FC', true);
+      this.addXp(150);
+      this.abyssRemnantsEarned += 12;
+      Storage.addAbyssRemnants(12);
+      this.triggerScreenShake(4);
+      this.createParticles(this.player.x, this.player.y, '#C084FC', 30);
+      if (this.onMessage) this.onMessage(`FRENESI DO ABISMO (${this.comboCount} Abates)!`, 'danger');
+    }
+
+    // Item 6: Progress Floor Bounty
+    if (this.currentBounty && !this.currentBounty.isCompleted) {
+      if (this.currentBounty.type === 'kill_total') {
+        this.progressBounty(1);
+      } else if (this.currentBounty.type === 'kill_elites' && (enemy.isElite || enemy.type === 'boss')) {
+        this.progressBounty(1);
+      } else if (this.currentBounty.type === 'kill_combo' && this.comboCount >= this.currentBounty.targetCount) {
+        this.progressBounty(this.currentBounty.targetCount);
+      } else if (this.currentBounty.type === 'skill_kills' && wasSkill) {
+        this.progressBounty(1);
+      }
+    }
+
+    // Volatile affix explosion upon death
+    if (enemy.isElite && enemy.affix === 'volatile') {
+      soundManager.playVoidPulse();
+      this.triggerScreenShake(8);
+      this.createParticles(enemy.x, enemy.y, '#C084FC', 35);
+      this.createParticles(enemy.x, enemy.y, '#F43F5E', 25);
+      this.addFloatingText(enemy.x, enemy.y - 0.8, 'DETONAÇÃO VOLÁTIL!', '#C084FC', true);
+
+      // Damage player if inside radius
+      const distToPlayer = Math.hypot(this.player.x - enemy.x, this.player.y - enemy.y);
+      if (distToPlayer <= 2.8) {
+        this.damagePlayer(Math.round(enemy.attack * 1.3));
+      }
+
+      // Friendly fire chain reaction to other nearby enemies
+      this.enemies.forEach((other) => {
+        if (other.id !== enemy.id) {
+          const d = Math.hypot(other.x - enemy.x, other.y - enemy.y);
+          if (d <= 2.8) {
+            this.damageEnemy(other, Math.round(enemy.attack * 1.4), true);
+          }
+        }
+      });
+    }
 
     // Satiate the floor hunger
     const satiateSec = enemy.isElite ? 8 : 4;
@@ -939,11 +1104,20 @@ export class GameEngine {
 
     // Remove from enemy list
     this.enemies = this.enemies.filter((e) => e.id !== enemy.id);
+
+    // Announce floor purification if all enemies eliminated
+    if (this.enemies.length === 0) {
+      if (this.onMessage) {
+        this.onMessage('⚔️ ANDAR PURIFICADO! A Escadaria do Abismo resplandece!', 'rare');
+      }
+      soundManager.playLevelUp();
+    }
   }
 
   public damagePlayer(damage: number) {
     if (this.player.invulnerableTimer > 0 || this.isGameOver) return;
 
+    this.player.hitFlashTimer = 0.10;
     soundManager.playPlayerHurt();
     this.triggerScreenShake(7);
 
@@ -1200,6 +1374,326 @@ export class GameEngine {
     if (this.onMessage) this.onMessage('A Fissura do Abismo reagiu à sua presença e saciou a Fome temporariamente!', 'danger');
   }
 
+  // Item 5: Altar of the Void Pacts
+  public interactAltar(tileX: number, tileY: number) {
+    if (this.isPaused || this.isGameOver || this.activeAltarOffer) return;
+    const pacts = this.generateAltarPacts();
+    const offer: AltarOffer = {
+      tileX,
+      tileY,
+      pacts,
+    };
+    this.activeAltarOffer = offer;
+    this.isPaused = true;
+    this.setMoveInput(0, 0);
+    soundManager.playVoidPulse();
+
+    if (this.onOpenAltar) {
+      this.onOpenAltar(offer);
+    }
+  }
+
+  private generateAltarPacts(): VoidPact[] {
+    const allPacts: VoidPact[] = [
+      {
+        id: 'pact-blood',
+        title: 'Pacto de Sangue Frio',
+        tagline: 'A carne fraqueja em troca do aço ancestral.',
+        costDescription: 'Sacrifica 25% da sua Vida Máxima atual',
+        benefitDescription: 'Recebe imediatamente 1 Equipamento Lendário forjado nas trevas',
+        icon: 'blood',
+        rarity: 'legendary',
+        costType: 'hp_pct',
+        benefitType: 'legendary_loot',
+        costValue: 25,
+        benefitValue: 1,
+      },
+      {
+        id: 'pact-fury',
+        title: 'Pacto da Fúria Devoradora',
+        tagline: 'Um ataque esmagador com o perigo à espreita.',
+        costDescription: 'Inimigos recebem +20% de Dano de Ataque',
+        benefitDescription: 'Seu Poder de Ataque Base aumenta em +35% permanentemente',
+        icon: 'fury',
+        rarity: 'rare',
+        costType: 'defense_trade',
+        benefitType: 'attack_boost',
+        costValue: 20,
+        benefitValue: 35,
+      },
+      {
+        id: 'pact-greed',
+        title: 'Pacto da Cobiça Maldita',
+        tagline: 'Tesouros proibidos que atraem os predadores do Abismo.',
+        costDescription: 'Invoca imediatamente 2 Campeões Elites furiosos ao redor do altar',
+        benefitDescription: 'Concede imediatamente +40 Vestígios do Abismo para Ascensão',
+        icon: 'greed',
+        rarity: 'curse',
+        costType: 'spawn_elites',
+        benefitType: 'vestiges_lump',
+        costValue: 2,
+        benefitValue: 40,
+      },
+      {
+        id: 'pact-haste',
+        title: 'Pacto do Tempo Dilacerado',
+        tagline: 'A magia flui como água, mas o Abismo desperta faminto.',
+        costDescription: 'O relógio da Fome do Abismo acelera 45 segundos',
+        benefitDescription: 'Todas as suas Habilidades têm tempo de recarga reduzido em -20%',
+        icon: 'haste',
+        rarity: 'rare',
+        costType: 'hunger_accelerate',
+        benefitType: 'cooldown_cut',
+        costValue: 45,
+        benefitValue: 20,
+      },
+    ];
+
+    const shuffled = [...allPacts].sort(() => this.prng.next() - 0.5);
+    return shuffled.slice(0, 2);
+  }
+
+  public applyVoidPact(pact: VoidPact) {
+    if (!this.activeAltarOffer) return;
+    const { tileX, tileY } = this.activeAltarOffer;
+
+    // Apply cost
+    if (pact.costType === 'hp_pct') {
+      const hpLoss = Math.round(this.player.stats.maxHp * (pact.costValue / 100));
+      this.player.stats.maxHp = Math.max(30, this.player.stats.maxHp - hpLoss);
+      this.player.stats.hp = Math.min(this.player.stats.maxHp, this.player.stats.hp);
+      this.addFloatingText(this.player.x, this.player.y - 0.5, `-${hpLoss} Vida Máxima`, '#EF4444');
+    } else if (pact.costType === 'hunger_accelerate') {
+      this.dungeon.floorTimer += pact.costValue;
+      this.addFloatingText(this.player.x, this.player.y - 0.5, `+${pact.costValue}s Fome`, '#F59E0B');
+    } else if (pact.costType === 'spawn_elites') {
+      for (let i = 0; i < pact.costValue; i++) {
+        const angle = i * Math.PI + Math.PI / 4;
+        const ex = Math.max(2, Math.min(this.dungeon.width - 3, tileX + Math.cos(angle) * 2));
+        const ey = Math.max(2, Math.min(this.dungeon.height - 3, tileY + Math.sin(angle) * 2));
+        this.enemies.push({
+          id: `altar-elite-${Date.now()}-${i}`,
+          type: i === 0 ? 'orc' : 'goblin',
+          name: i === 0 ? 'VAMPÍRICO GUARDIÃO' : 'VOLÁTIL DEMÔNIO',
+          x: ex,
+          y: ey,
+          width: 1.3,
+          height: 1.3,
+          hp: 130 + this.currentFloorNumber * 25,
+          maxHp: 130 + this.currentFloorNumber * 25,
+          attack: 16 + this.currentFloorNumber * 1.5,
+          defense: 8,
+          speed: 2.3,
+          isElite: true,
+          affix: i === 0 ? 'vampiric' : 'volatile',
+          affixName: i === 0 ? 'Vampírico' : 'Volátil',
+          attackCooldown: 0,
+          maxAttackCooldown: 1.8,
+          attackWindup: 0,
+          isAttacking: false,
+          facing: 'left',
+          state: 'chase',
+          telegraphRadius: 0,
+          telegraphTimer: 0,
+          xpReward: 90 + this.currentFloorNumber * 15,
+          fissurePower: 1,
+        });
+      }
+      this.addFloatingText(this.player.x, this.player.y - 0.5, '2 Campeões Invocados!', '#A855F7');
+    } else if (pact.costType === 'defense_trade') {
+      this.enemies.forEach((e) => {
+        e.attack = Math.round(e.attack * 1.2);
+      });
+      this.addFloatingText(this.player.x, this.player.y - 0.5, 'Inimigos Enfurecidos (+20% Dano)', '#EF4444');
+    }
+
+    // Apply benefit
+    if (pact.benefitType === 'legendary_loot') {
+      const rareItem = generateItem(this.prng, this.currentFloorNumber, 'legendary');
+      this.groundItems.push({
+        id: `altar-item-${Date.now()}`,
+        item: rareItem,
+        x: tileX + 0.5,
+        y: tileY + 1.2,
+        bobTimer: 0,
+        pickupDelay: 0.4,
+      });
+      this.addFloatingText(tileX + 0.5, tileY - 0.5, `Relíquia: ${rareItem.name}`, '#F59E0B');
+    } else if (pact.benefitType === 'attack_boost') {
+      const atkInc = Math.round(this.player.stats.baseAttack * (pact.benefitValue / 100));
+      this.player.stats.baseAttack += atkInc;
+      this.addFloatingText(this.player.x, this.player.y - 0.8, `+${atkInc} Ataque Permanente`, '#10B981');
+    } else if (pact.benefitType === 'vestiges_lump') {
+      this.abyssRemnantsEarned += pact.benefitValue;
+      Storage.addAbyssRemnants(pact.benefitValue);
+      this.addFloatingText(this.player.x, this.player.y - 0.8, `+${pact.benefitValue} Vestígios`, '#C084FC');
+    } else if (pact.benefitType === 'cooldown_cut') {
+      this.player.stats.cooldownReduction = Math.min(0.5, this.player.stats.cooldownReduction + 0.15);
+      this.addFloatingText(this.player.x, this.player.y - 0.8, '-15% Recarga Permanente', '#38BDF8');
+    }
+
+    // Altar turns into consumed ritual floor
+    this.dungeon.tiles[tileY][tileX] = TileType.FLOOR_RITUAL;
+    soundManager.playAltarPact();
+    this.triggerScreenShake(3);
+    this.createParticles(tileX + 0.5, tileY + 0.5, '#A855F7', 30);
+    this.createParticles(this.player.x, this.player.y, '#E11D48', 20);
+
+    if (this.onMessage) {
+      this.onMessage(`Pacto Selado: ${pact.title}!`, 'rare');
+    }
+
+    this.activeAltarOffer = null;
+    this.isPaused = false;
+  }
+
+  public declineVoidPact() {
+    this.activeAltarOffer = null;
+    this.isPaused = false;
+    if (this.onMessage) {
+      this.onMessage('Você recusou as tentações do Altar.', 'info');
+    }
+  }
+
+  // Item 6: Floor Bounties / Metas do Andar
+  public generateFloorBounty(floorNum: number, enemies: Enemy[]): FloorBounty {
+    const eliteCount = enemies.filter((e) => e.isElite).length;
+    const isBossFloor = floorNum % 10 === 0;
+
+    if (isBossFloor) {
+      return {
+        id: `bounty-boss-${floorNum}`,
+        title: 'Duelo do Vazio',
+        description: 'Derrote a colossal Sombra da Fome',
+        targetCount: 1,
+        currentCount: 0,
+        type: 'kill_total',
+        isCompleted: false,
+        rewardText: '+35 Vestígios do Abismo',
+        rewardVestiges: 35,
+        rewardType: 'vestiges',
+      };
+    }
+
+    const pool: FloorBounty[] = [];
+
+    if (eliteCount > 0) {
+      pool.push({
+        id: `bounty-elites-${floorNum}`,
+        title: 'Caçada dos Campeões',
+        description: `Elimine ${eliteCount > 1 ? `${Math.min(2, eliteCount)} Campeões Elites` : 'o Campeão Elite'}`,
+        targetCount: Math.min(2, eliteCount),
+        currentCount: 0,
+        type: 'kill_elites',
+        isCompleted: false,
+        rewardText: '+25 Vestígios & Baú de Tesouro',
+        rewardVestiges: 25,
+        rewardType: 'chest',
+      });
+    }
+
+    pool.push({
+      id: `bounty-combo-${floorNum}`,
+      title: 'Frenesi Sanguinário',
+      description: 'Atinja uma sequência de 5 abates consecutivos',
+      targetCount: 5,
+      currentCount: 0,
+      type: 'kill_combo',
+      isCompleted: false,
+      rewardText: '+20 Vestígios & +1 Frasco de Vida',
+      rewardVestiges: 20,
+      rewardType: 'potion',
+    });
+
+    const targetKills = Math.min(10, Math.max(5, Math.floor(enemies.length * 0.65)));
+    pool.push({
+      id: `bounty-purge-${floorNum}`,
+      title: 'Expurgo das Sombras',
+      description: `Elimine ${targetKills} monstros neste andar`,
+      targetCount: targetKills,
+      currentCount: 0,
+      type: 'kill_total',
+      isCompleted: false,
+      rewardText: '+20 Vestígios do Abismo',
+      rewardVestiges: 20,
+      rewardType: 'vestiges',
+    });
+
+    pool.push({
+      id: `bounty-skills-${floorNum}`,
+      title: 'Mestre Arcano',
+      description: 'Derrote 4 monstros utilizando suas Habilidades',
+      targetCount: 4,
+      currentCount: 0,
+      type: 'skill_kills',
+      isCompleted: false,
+      rewardText: '+20 Vestígios & Baú de Tesouro',
+      rewardVestiges: 20,
+      rewardType: 'chest',
+    });
+
+    pool.push({
+      id: `bounty-swift-${floorNum}`,
+      title: 'Passos Silenciosos',
+      description: 'Encontre a Escadaria com a Fome em estado Dormente',
+      targetCount: 1,
+      currentCount: 0,
+      type: 'clear_dormant',
+      isCompleted: false,
+      rewardText: '+25 Vestígios do Abismo',
+      rewardVestiges: 25,
+      rewardType: 'vestiges',
+    });
+
+    return this.prng.pick(pool);
+  }
+
+  public progressBounty(amount = 1) {
+    if (!this.currentBounty || this.currentBounty.isCompleted) return;
+    this.currentBounty.currentCount = Math.min(this.currentBounty.targetCount, this.currentBounty.currentCount + amount);
+
+    if (this.currentBounty.currentCount >= this.currentBounty.targetCount) {
+      this.currentBounty.isCompleted = true;
+      soundManager.playBountyComplete();
+      this.triggerScreenShake(3);
+      this.createParticles(this.player.x, this.player.y, '#F59E0B', 25);
+      this.createParticles(this.player.x, this.player.y, '#38BDF8', 15);
+
+      this.abyssRemnantsEarned += this.currentBounty.rewardVestiges;
+      Storage.addAbyssRemnants(this.currentBounty.rewardVestiges);
+
+      if (this.currentBounty.rewardType === 'chest') {
+        const item = generateItem(this.prng, this.currentFloorNumber, 'rare');
+        this.groundItems.push({
+          id: `bounty-chest-${Date.now()}`,
+          item,
+          x: this.player.x + 0.6,
+          y: this.player.y,
+          bobTimer: 0,
+          pickupDelay: 0.3,
+        });
+      } else if (this.currentBounty.rewardType === 'potion') {
+        this.player.potionsCount++;
+      }
+
+      this.addFloatingText(
+        this.player.x,
+        this.player.y - 1.0,
+        `🏆 META CUMPRIDA: +${this.currentBounty.rewardVestiges} Vestígios!`,
+        '#F59E0B',
+        true
+      );
+
+      if (this.onMessage) {
+        this.onMessage(`🎯 Meta Cumprida: ${this.currentBounty.title}! (${this.currentBounty.rewardText})`, 'rare');
+      }
+
+      if (this.onBountyCompleted) {
+        this.onBountyCompleted(this.currentBounty);
+      }
+    }
+  }
+
   public useItem(inventoryIndex: number): boolean {
     const item = this.player.inventory[inventoryIndex];
     if (!item) return false;
@@ -1270,121 +1764,110 @@ export class GameEngine {
         this.addFloatingText(this.player.x, this.player.y - 0.5, 'Todo o Andar Revelado!', '#38BDF8');
         if (this.onMessage) this.onMessage('A Revelação Arcana expôs todas as salas, tesouros e escadas da masmorra.', 'rare');
       } else if (item.scrollEffect === 'teleport') {
-        const stairs = this.dungeon.stairsPos;
-        let targetX = -1;
-        let targetY = -1;
-
-        // BFS outward from stairs to find a safe, open floor tile
-        // (never a wall, void, pillar, chest, fissure, or the stairs tile itself)
-        const visited = new Set<string>();
-        const queue: Array<{ x: number; y: number; dist: number }> = [
-          { x: stairs.x, y: stairs.y, dist: 0 },
-        ];
-        visited.add(`${stairs.x},${stairs.y}`);
-
-        while (queue.length > 0) {
-          const curr = queue.shift()!;
-          if (curr.dist > 12) break;
-
-          // Check if curr tile is valid floor and not the stairs
-          if (curr.dist >= 1) {
-            const tile = this.dungeon.tiles[curr.y]?.[curr.x];
-            if (
-              tile !== undefined &&
-              !this.isTileWall(curr.x, curr.y) &&
-              tile !== TileType.STAIRS_DOWN &&
-              tile !== TileType.CHEST_CLOSED &&
-              tile !== TileType.CHEST_OPEN &&
-              tile !== TileType.FISSURE &&
-              tile !== TileType.WALL &&
-              tile !== TileType.VOID &&
-              tile !== TileType.PILLAR
-            ) {
-              // Ensure at least 2 open neighbor tiles for comfortable movement
-              let openNeighbors = 0;
-              const nOffsets = [
-                { nx: curr.x + 1, ny: curr.y },
-                { nx: curr.x - 1, ny: curr.y },
-                { nx: curr.x, ny: curr.y + 1 },
-                { nx: curr.x, ny: curr.y - 1 },
-              ];
-              for (const n of nOffsets) {
-                if (!this.isTileWall(n.nx, n.ny)) openNeighbors++;
+        try {
+          const stairs = this.dungeon.stairsPos || (this.dungeon.rooms && this.dungeon.rooms.length > 0
+            ? {
+                x: Math.floor(this.dungeon.rooms[this.dungeon.rooms.length - 1].x + this.dungeon.rooms[this.dungeon.rooms.length - 1].width / 2),
+                y: Math.floor(this.dungeon.rooms[this.dungeon.rooms.length - 1].y + this.dungeon.rooms[this.dungeon.rooms.length - 1].height / 2),
               }
+            : { x: 20, y: 20 });
 
-              if (openNeighbors >= 2) {
-                targetX = curr.x;
-                targetY = curr.y;
-                break;
-              }
-            }
-          }
+          let targetX = -1;
+          let targetY = -1;
 
-          // Expand to 4 directions
-          const dirs = [
-            { dx: 0, dy: 1 },
-            { dx: 0, dy: -1 },
-            { dx: 1, dy: 0 },
-            { dx: -1, dy: 0 },
+          // Ordered radial candidate offsets around the stairs (distance 1 to 3 tiles)
+          const candidateOffsets: [number, number][] = [
+            [0, 1], [0, -1], [1, 0], [-1, 0],
+            [1, 1], [-1, 1], [1, -1], [-1, -1],
+            [0, 2], [0, -2], [2, 0], [-2, 0],
+            [1, 2], [-1, 2], [1, -2], [-1, -2],
+            [2, 1], [-2, 1], [2, -1], [-2, -1],
+            [0, 3], [0, -3], [3, 0], [-3, 0],
+            [2, 2], [-2, 2], [2, -2], [-2, -2],
           ];
-          for (const d of dirs) {
-            const nx = curr.x + d.dx;
-            const ny = curr.y + d.dy;
-            const key = `${nx},${ny}`;
-            if (
-              nx >= 0 &&
-              nx < this.dungeon.width &&
-              ny >= 0 &&
-              ny < this.dungeon.height &&
-              !visited.has(key)
-            ) {
-              visited.add(key);
-              if (!this.isTileWall(nx, ny)) {
-                queue.push({ x: nx, y: ny, dist: curr.dist + 1 });
-              }
-            }
-          }
-        }
 
-        // Guaranteed fallback if stairs room was somehow sealed
-        if (targetX === -1 || targetY === -1) {
-          targetX = this.dungeon.playerSpawn.x;
-          targetY = this.dungeon.playerSpawn.y;
-        }
-
-        this.player.x = targetX + 0.5;
-        this.player.y = targetY + 0.5;
-        this.player.vx = 0;
-        this.player.vy = 0;
-        this.moveInput = { x: 0, y: 0 };
-        this.player.isAttacking = false;
-        this.player.attackTimer = 0;
-        this.isAttackPressed = false;
-        this.player.invulnerableTimer = 3.0;
-
-        // Push away any enemies close to the landing spot
-        this.enemies.forEach((enemy) => {
-          const d = Math.hypot(enemy.x - this.player.x, enemy.y - this.player.y);
-          if (d < 3.2) {
-            const angle = Math.atan2(enemy.y - this.player.y, enemy.x - this.player.x) || Math.random() * Math.PI * 2;
-            for (const dist of [3.5, 3.0, 2.5, 2.0]) {
-              const ex = this.player.x + Math.cos(angle) * dist;
-              const ey = this.player.y + Math.sin(angle) * dist;
-              if (!this.isTileWall(ex, ey)) {
-                enemy.x = ex;
-                enemy.y = ey;
+          for (const [dx, dy] of candidateOffsets) {
+            const cx = stairs.x + dx;
+            const cy = stairs.y + dy;
+            if (cx > 0 && cx < this.dungeon.width - 1 && cy > 0 && cy < this.dungeon.height - 1) {
+              const tile = this.dungeon.tiles[cy]?.[cx];
+              if (
+                tile !== undefined &&
+                !this.isTileWall(cx, cy) &&
+                tile !== TileType.STAIRS_DOWN &&
+                tile !== TileType.CHEST_CLOSED &&
+                tile !== TileType.CHEST_OPEN &&
+                tile !== TileType.FISSURE
+              ) {
+                targetX = cx;
+                targetY = cy;
                 break;
               }
             }
           }
-        });
 
-        updateFogOfWar(this.dungeon, this.player.x, this.player.y, this.player.stats.visionRadius);
-        this.createParticles(this.player.x, this.player.y, '#A855F7', 35);
-        this.createParticles(stairs.x + 0.5, stairs.y + 0.5, '#38BDF8', 25);
-        this.triggerScreenShake(7);
-        this.addFloatingText(this.player.x, this.player.y - 0.5, 'Salto Espectral Realizado!', '#C084FC');
-        if (this.onMessage) this.onMessage('Você rompeu as dimensões e surgiu diante das escadas!', 'rare');
+          // Fallback to player spawn or safe room center if no adjacent floor matched
+          if (targetX === -1 || targetY === -1) {
+            if (this.dungeon.playerSpawn && typeof this.dungeon.playerSpawn.x === 'number') {
+              targetX = this.dungeon.playerSpawn.x;
+              targetY = this.dungeon.playerSpawn.y;
+            } else {
+              targetX = Math.max(2, Math.min(this.dungeon.width - 3, stairs.x));
+              targetY = Math.max(2, Math.min(this.dungeon.height - 3, stairs.y));
+            }
+          }
+
+          // Safely place player
+          this.player.x = targetX + 0.5;
+          this.player.y = targetY + 0.5;
+          this.player.vx = 0;
+          this.player.vy = 0;
+          this.moveInput = { x: 0, y: 0 };
+          this.player.isAttacking = false;
+          this.player.attackTimer = 0;
+          this.isAttackPressed = false;
+          this.player.invulnerableTimer = 3.0;
+
+          // Push away any enemies close to landing spot safely
+          if (Array.isArray(this.enemies)) {
+            this.enemies.forEach((enemy) => {
+              if (!enemy || typeof enemy.x !== 'number' || typeof enemy.y !== 'number') return;
+              const d = Math.hypot(enemy.x - this.player.x, enemy.y - this.player.y);
+              if (d < 3.2) {
+                const dx = enemy.x - this.player.x;
+                const dy = enemy.y - this.player.y;
+                const angle = (dx === 0 && dy === 0) ? Math.random() * Math.PI * 2 : Math.atan2(dy, dx);
+                for (const dist of [3.5, 3.0, 2.5, 2.0]) {
+                  const ex = this.player.x + Math.cos(angle) * dist;
+                  const ey = this.player.y + Math.sin(angle) * dist;
+                  if (ex > 1 && ex < this.dungeon.width - 2 && ey > 1 && ey < this.dungeon.height - 2 && !this.isTileWall(ex, ey)) {
+                    enemy.x = ex;
+                    enemy.y = ey;
+                    break;
+                  }
+                }
+              }
+            });
+          }
+
+          // Update fog of war
+          try {
+            updateFogOfWar(this.dungeon, this.player.x, this.player.y, this.player.stats.visionRadius);
+          } catch (fogErr) {
+            console.warn('Fog update on teleport warning:', fogErr);
+          }
+
+          // Particle and sound effects with numeric sanity checks
+          this.createParticles(this.player.x, this.player.y, '#A855F7', 35);
+          if (stairs && Number.isFinite(stairs.x) && Number.isFinite(stairs.y)) {
+            this.createParticles(stairs.x + 0.5, stairs.y + 0.5, '#38BDF8', 25);
+          }
+          this.triggerScreenShake(7);
+          this.addFloatingText(this.player.x, this.player.y - 0.5, 'Salto Espectral Realizado!', '#C084FC');
+          if (this.onMessage) this.onMessage('Você rompeu as dimensões e surgiu diante das escadas!', 'rare');
+        } catch (tpErr) {
+          console.error('Safe teleport fallback caught:', tpErr);
+        }
       } else if (item.scrollEffect === 'nova_flames') {
         const novaDmg = Math.round(120 + this.currentFloorNumber * 25);
         let countHit = 0;
@@ -1564,6 +2047,74 @@ export class GameEngine {
     });
   }
 
+  public handleStairsTrigger() {
+    if (this.floorClearTriggered || this.isPaused || this.isGameOver) return;
+
+    // Check boss floor (e.g. floor 10, 20...)
+    const isBossAlive = this.enemies.some((e) => e.type === 'boss');
+    if (isBossAlive) {
+      if (this.onMessage) {
+        this.onMessage('A Escadaria está selada! Derrote a Sombra da Fome primeiro!', 'danger');
+      }
+      return;
+    }
+
+    this.floorClearTriggered = true;
+    this.setMoveInput(0, 0);
+    this.triggerFloorClear();
+  }
+
+  public triggerFloorClear() {
+    if (this.isPaused || this.isGameOver) return;
+    this.isPaused = true;
+    this.setMoveInput(0, 0);
+    this.triggerScreenShake(3);
+
+    const hungerDesc =
+      this.dungeon.hungerLevel === 0 ? 'Sombra Dormente (Excelente)' :
+      this.dungeon.hungerLevel === 1 ? 'Agitação Leve' :
+      this.dungeon.hungerLevel === 2 ? 'Fome Desperta' :
+      this.dungeon.hungerLevel === 3 ? 'Fissura Crítica' : 'Consumido pelo Vazio';
+
+    const healAmount = Math.round(this.player.stats.maxHp * 0.35);
+    const remnantsAmount = 10 + Math.min(15, this.currentFloorNumber * 2);
+
+    const summary: FloorClearSummary = {
+      floorCompleted: this.currentFloorNumber,
+      nextFloor: this.currentFloorNumber + 1,
+      enemiesKilled: this.floorEnemiesKilledCount,
+      timeSpentSeconds: Math.round(this.dungeon.floorTimer),
+      hungerStatus: hungerDesc,
+      hungerLevel: this.dungeon.hungerLevel,
+      healAmount,
+      remnantsAmount,
+    };
+
+    if (this.onFloorCleared) {
+      this.onFloorCleared(summary);
+    } else {
+      this.advanceToNextFloor('heal');
+    }
+  }
+
+  public advanceToNextFloor(rewardChoice: 'heal' | 'remnants') {
+    if (rewardChoice === 'heal') {
+      const heal = Math.round(this.player.stats.maxHp * 0.35);
+      this.player.stats.hp = Math.min(this.player.stats.maxHp, this.player.stats.hp + heal);
+      if (this.onMessage) this.onMessage(`Descanso Restaurador: +${heal} HP restaurados!`, 'rare');
+    } else {
+      const rem = 10 + Math.min(15, this.currentFloorNumber * 2);
+      this.abyssRemnantsEarned += rem;
+      Storage.addAbyssRemnants(rem);
+      if (this.onMessage) this.onMessage(`Tributo do Vazio: +${rem} Vestígios guardados!`, 'rare');
+    }
+
+    this.floorEnemiesKilledCount = 0;
+    this.floorClearTriggered = false;
+    this.isPaused = false;
+    this.loadFloor(this.currentFloorNumber + 1);
+  }
+
   private isTileWall(x: number, y: number): boolean {
     const tx = Math.floor(x);
     const ty = Math.floor(y);
@@ -1573,12 +2124,13 @@ export class GameEngine {
   }
 
   private triggerScreenShake(intensity: number) {
-    if (!this.settings.screenShake) return;
+    if (!this.settings.screenShake || !Number.isFinite(intensity)) return;
     this.cameraShake.x = (Math.random() - 0.5) * intensity * 2;
     this.cameraShake.y = (Math.random() - 0.5) * intensity * 2;
   }
 
   private createParticles(x: number, y: number, color: string, count: number) {
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return;
     for (let i = 0; i < count; i++) {
       const angle = Math.random() * Math.PI * 2;
       const speed = 0.5 + Math.random() * 2.5;
@@ -1596,6 +2148,7 @@ export class GameEngine {
   }
 
   private addFloatingText(x: number, y: number, text: string, color: string, isCrit = false) {
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return;
     this.floatingTexts.push({
       id: `ft-${Date.now()}-${Math.random()}`,
       x,
