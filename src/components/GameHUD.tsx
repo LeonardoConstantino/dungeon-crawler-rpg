@@ -1,6 +1,22 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { PlayerState, DungeonFloor, Room, FogState, FloorBounty } from '../game/types';
-import { Copy, Pause, Shield, Zap, Heart, Map, Maximize2, Minimize2, Eye, EyeOff, Flame, Share2, Sparkles, Target, Trophy, Swords } from 'lucide-react';
+import {
+  Pause,
+  Shield,
+  Zap,
+  Heart,
+  Map,
+  Maximize2,
+  Minimize2,
+  Flame,
+  Share2,
+  Sparkles,
+  Target,
+  Trophy,
+  Swords,
+  Backpack,
+  Compass,
+} from 'lucide-react';
 import { soundManager } from '../game/audio';
 import { ItemIcon } from './ItemIcon';
 
@@ -42,10 +58,11 @@ export const GameHUD: React.FC<GameHUDProps> = ({
   isMobile,
 }) => {
   const [minimapZoomed, setMinimapZoomed] = useState(false);
-  const [mobileMinimapVisible, setMobileMinimapVisible] = useState(true);
+  const [mobileMinimapVisible, setMobileMinimapVisible] = useState(!isMobile);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const [bountyExpanded, setBountyExpanded] = useState(false);
 
-  React.useEffect(() => {
+  useEffect(() => {
     const checkFullscreen = () => {
       setIsFullscreen(
         !!(
@@ -123,9 +140,9 @@ export const GameHUD: React.FC<GameHUDProps> = ({
   const firstElixir = player.inventory.find((item) => item !== null && item.type === 'elixir');
   const elixirCount = player.inventory.filter((item) => item !== null && item.type === 'elixir').length;
 
-  // Helper to render the SVG Minimap Content
+  // Render SVG Minimap
   const renderMinimapSvg = () => (
-    <div className="relative w-full h-full bg-[#07090E] rounded overflow-hidden">
+    <div className="relative w-full h-full bg-[#06080E] rounded-lg overflow-hidden border border-slate-800/90 shadow-inner">
       <svg className="w-full h-full" viewBox={`0 0 ${dungeon.width} ${dungeon.height}`}>
         {dungeon.rooms.map((room: Room) => {
           const isPlayerInside =
@@ -134,18 +151,28 @@ export const GameHUD: React.FC<GameHUDProps> = ({
             Math.floor(player.y) >= room.y &&
             Math.floor(player.y) < room.y + room.height;
 
-          // Check if room has been explored
+          // Room explored check
           const isExplored = dungeon.fog[Math.floor(room.y + room.height / 2)]?.[
             Math.floor(room.x + room.width / 2)
           ] !== FogState.UNEXPLORED;
 
           if (!isExplored) return null;
 
-          let roomColor = '#1E293B';
-          if (room.type === 'treasure') roomColor = '#B45309';
-          if (room.type === 'anomaly') roomColor = '#BE123C';
-          if (room.type === 'stairs') roomColor = '#0369A1';
-          if (room.type === 'boss') roomColor = '#831843';
+          let roomFill = '#151D2A';
+          let roomBorder = isPlayerInside ? '#38BDF8' : '#2A374A';
+          if (room.type === 'treasure') {
+            roomFill = '#92400E';
+            roomBorder = '#F59E0B';
+          } else if (room.type === 'anomaly') {
+            roomFill = '#9F1239';
+            roomBorder = '#FB7185';
+          } else if (room.type === 'stairs') {
+            roomFill = '#0369A1';
+            roomBorder = '#38BDF8';
+          } else if (room.type === 'boss') {
+            roomFill = '#6B21A8';
+            roomBorder = '#C084FC';
+          }
 
           return (
             <rect
@@ -154,14 +181,27 @@ export const GameHUD: React.FC<GameHUDProps> = ({
               y={room.y}
               width={room.width}
               height={room.height}
-              fill={roomColor}
-              stroke={isPlayerInside ? '#38BDF8' : '#334155'}
-              strokeWidth={isPlayerInside ? '1' : '0.5'}
+              fill={roomFill}
+              stroke={roomBorder}
+              strokeWidth={isPlayerInside ? '1.2' : '0.6'}
+              rx="0.5"
             />
           );
         })}
-        {/* Player Marker */}
-        <circle cx={player.x} cy={player.y} r="1.5" fill="#38BDF8" />
+
+        {/* Player Position Marker with Subtle Glow */}
+        <circle cx={player.x} cy={player.y} r="2.2" fill="rgba(56, 189, 248, 0.25)" />
+        <circle cx={player.x} cy={player.y} r="1.3" fill="#38BDF8" />
+        {/* Facing Direction Tick */}
+        <line
+          x1={player.x}
+          y1={player.y}
+          x2={player.facing === 'right' ? player.x + 2.0 : player.x - 2.0}
+          y2={player.y}
+          stroke="#FFFFFF"
+          strokeWidth="0.8"
+          strokeLinecap="round"
+        />
       </svg>
     </div>
   );
@@ -170,27 +210,28 @@ export const GameHUD: React.FC<GameHUDProps> = ({
     <div
       className="absolute inset-0 pointer-events-none flex flex-col justify-between select-none z-10"
       style={{
-        paddingTop: 'max(0.5rem, env(safe-area-inset-top, 0px))',
-        paddingBottom: 'max(0.5rem, env(safe-area-inset-bottom, 0px))',
+        paddingTop: 'max(0.35rem, env(safe-area-inset-top, 0px))',
+        paddingBottom: 'max(0.35rem, env(safe-area-inset-bottom, 0px))',
         paddingLeft: 'max(0.5rem, env(safe-area-inset-left, 0px))',
         paddingRight: 'max(0.5rem, env(safe-area-inset-right, 0px))',
       }}
     >
-      {/* Top Bar: HP/XP on left, Fome do Abismo in center, Floor/Seed/Mochila/Pause on right */}
-      <div className="flex items-start justify-between w-full p-2 md:p-4 gap-2">
-        {/* Top-Left: Player Vitality, Level & Active Buffs */}
-        <div className="flex flex-col gap-1 pointer-events-auto max-w-[180px] sm:max-w-[240px] flex-1">
+      {/* TOP HEADER: Clean 3-column split with clear visual hierarchy */}
+      <div className="flex items-start justify-between w-full p-1.5 sm:p-2 md:p-3 gap-1.5 sm:gap-2">
+        {/* 1. TOP-LEFT: Player Vitality & Level (Immediate Combat State) */}
+        <div className="flex flex-col gap-1 pointer-events-auto max-w-[145px] sm:max-w-[210px] md:max-w-[240px] shrink-0">
           {/* Health Bar with Glassmorphic Bevel */}
-          <div className="bg-gradient-to-b from-[#0F1523]/95 via-[#0B0E17]/95 to-[#07090F]/95 border-t border-t-slate-700/60 border-x border-x-slate-800/80 border-b border-b-black/80 rounded-xl p-2 sm:p-2.5 backdrop-blur-md shadow-[0_6px_20px_rgba(0,0,0,0.6)] ring-1 ring-white/5">
-            <div className="flex items-center justify-between text-[11px] sm:text-xs mb-1 font-mono">
+          <div className="bg-gradient-to-b from-[#0F1523]/95 via-[#0B0E17]/95 to-[#07090F]/95 border-t border-t-slate-700/60 border-x border-x-slate-800/80 border-b border-b-black/80 rounded-xl p-1.5 sm:p-2 backdrop-blur-md shadow-[0_6px_20px_rgba(0,0,0,0.6)] ring-1 ring-white/5">
+            <div className="flex items-center justify-between text-[10px] sm:text-xs mb-0.5 font-mono">
               <span className="flex items-center gap-1 text-rose-400 font-semibold tracking-wide">
-                <Heart className="w-3 h-3 sm:w-3.5 sm:h-3.5 fill-rose-500/20 text-rose-500 shrink-0" />
+                <Heart className="w-2.5 h-2.5 sm:w-3 sm:h-3 fill-rose-500/20 text-rose-500 shrink-0" />
                 <span className="font-bold">VIDA</span>
               </span>
-              <span className="tabular-nums text-slate-200 font-bold">
+              <span className="tabular-nums text-slate-100 font-bold">
                 {player.stats.hp} / {player.stats.maxHp}
               </span>
             </div>
+
             <div className="w-full bg-slate-950/90 h-2 sm:h-2.5 rounded-full overflow-hidden relative border border-slate-900 shadow-inner">
               <div
                 className="h-full bg-gradient-to-r from-rose-700 via-rose-600 to-red-500 transition-all duration-200 shadow-[0_0_8px_rgba(244,63,94,0.4)]"
@@ -205,9 +246,9 @@ export const GameHUD: React.FC<GameHUDProps> = ({
             </div>
 
             {/* XP Bar */}
-            <div className="flex items-center justify-between text-[10px] sm:text-[11px] mt-1.5 mb-0.5 font-mono text-sky-400">
+            <div className="flex items-center justify-between text-[9px] sm:text-[10px] mt-1 font-mono text-sky-400">
               <span className="flex items-center gap-1 font-bold">
-                <Zap className="w-2.5 h-2.5 sm:w-3 sm:h-3 text-sky-400 shrink-0" />
+                <Zap className="w-2.5 h-2.5 text-sky-400 shrink-0" />
                 <span>NV {player.stats.level}</span>
               </span>
               <span className="tabular-nums text-slate-400 font-semibold">
@@ -222,13 +263,13 @@ export const GameHUD: React.FC<GameHUDProps> = ({
             </div>
           </div>
 
-          {/* Active Buffs Strip (Scrolls & Elixirs active) */}
+          {/* Active Buffs (Scrolls/Elixirs) */}
           {player.activeBuffs && player.activeBuffs.length > 0 && (
-            <div className="flex flex-wrap gap-1 pt-0.5 pointer-events-none">
+            <div className="flex flex-wrap gap-1 pointer-events-none">
               {player.activeBuffs.map((buff) => (
                 <span
                   key={buff.id}
-                  className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-mono font-bold border backdrop-blur-sm shadow ${
+                  className={`inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[8.5px] font-mono font-bold border backdrop-blur-sm shadow ${
                     buff.type === 'fury'
                       ? 'bg-rose-950/90 text-rose-300 border-rose-700'
                       : buff.type === 'speed'
@@ -236,27 +277,28 @@ export const GameHUD: React.FC<GameHUDProps> = ({
                       : 'bg-cyan-950/90 text-cyan-300 border-cyan-700'
                   }`}
                 >
-                  <span className="truncate max-w-[70px]">{buff.name}</span>
+                  <span className="truncate max-w-[55px] sm:max-w-[70px]">{buff.name}</span>
                   <span className="tabular-nums text-white">{Math.ceil(buff.timer)}s</span>
                 </span>
               ))}
             </div>
           )}
 
-          {/* Quick Stats Strip (Desktop only) */}
-          <div className="hidden sm:flex items-center gap-2 text-xs text-slate-400 px-1 font-mono">
-            <span>ATQ: {player.stats.baseAttack}</span>
-            <span aria-hidden="true">·</span>
-            <span>DEF: {player.stats.baseDefense}</span>
-            <span aria-hidden="true">·</span>
-            <span className="text-emerald-400 font-semibold">FRASCOS: {player.potionsCount}</span>
-          </div>
+          {/* Desktop Only: Stat summary (Keeps mobile clean) */}
+          {!isMobile && (
+            <div className="flex items-center gap-2 text-xs text-slate-400 px-1 font-mono mt-0.5">
+              <span>ATQ: {player.stats.baseAttack}</span>
+              <span aria-hidden="true">·</span>
+              <span>DEF: {player.stats.baseDefense}</span>
+            </div>
+          )}
         </div>
 
-        {/* Top-Center: FOME DO ABISMO Floor Real-Time Gauge & Floor Bounty */}
-        <div className="flex flex-col items-center pointer-events-auto mx-1 max-w-[160px] sm:max-w-[240px] flex-1 gap-1">
+        {/* 2. TOP-CENTER: Fome do Abismo & Floor Bounty & Combo Meter (Compact Center Capsule) */}
+        <div className="flex flex-col items-center pointer-events-auto mx-auto max-w-[150px] sm:max-w-[210px] md:max-w-[250px] flex-1 gap-1">
+          {/* Abyss Hunger Gauge */}
           <div
-            className={`w-full bg-[#0B0F17]/95 border rounded-lg p-1.5 sm:p-2 backdrop-blur-sm shadow-xl flex flex-col items-center transition-all ${
+            className={`w-full bg-[#090D15]/95 border rounded-lg px-2 py-1 backdrop-blur-sm shadow-xl flex flex-col items-center transition-all ${
               dungeon.hungerLevel >= 4
                 ? 'border-purple-600 ring-1 ring-purple-500 animate-pulse'
                 : dungeon.hungerLevel >= 3
@@ -266,10 +308,10 @@ export const GameHUD: React.FC<GameHUDProps> = ({
                 : 'border-slate-800'
             }`}
           >
-            <div className="flex items-center justify-between w-full text-[9px] sm:text-[11px] font-mono mb-1">
+            <div className="flex items-center justify-between w-full text-[8.5px] sm:text-[10px] font-mono mb-0.5">
               <span className="flex items-center gap-1 font-bold truncate">
                 <Flame
-                  className={`w-3 h-3 shrink-0 ${
+                  className={`w-2.5 h-2.5 sm:w-3 sm:h-3 shrink-0 ${
                     dungeon.hungerLevel >= 3
                       ? 'text-rose-500 animate-bounce'
                       : dungeon.hungerLevel >= 2
@@ -288,12 +330,11 @@ export const GameHUD: React.FC<GameHUDProps> = ({
                     : 'text-slate-300'
                 }`}
               >
-                {dungeon.isHungerFrozen ? '❄ CONGELADO' : formatTimer(dungeon.floorTimer || 0)}
+                {dungeon.isHungerFrozen ? '❄ CONGELADA' : formatTimer(dungeon.floorTimer || 0)}
               </span>
             </div>
 
-            {/* Gauge fill */}
-            <div className="w-full bg-slate-950 h-1.5 sm:h-2 rounded overflow-hidden border border-slate-900 relative">
+            <div className="w-full bg-slate-950 h-1 sm:h-1.5 rounded overflow-hidden border border-slate-900">
               <div
                 className={`h-full transition-all duration-300 bg-gradient-to-r ${hungerBarGradient}`}
                 style={{ width: `${hungerProgressPct}%` }}
@@ -301,28 +342,29 @@ export const GameHUD: React.FC<GameHUDProps> = ({
             </div>
           </div>
 
-          {/* Floor Bounty Widget (Item 6: Desafios do Andar) */}
+          {/* Floor Bounty Widget */}
           {currentBounty && (
             <div
-              className={`w-full rounded-lg px-2 py-1 border backdrop-blur-md shadow-lg transition-all duration-300 ${
+              onClick={() => setBountyExpanded(!bountyExpanded)}
+              className={`w-full rounded-lg px-2 py-0.5 sm:py-1 border backdrop-blur-md shadow-md cursor-pointer transition-all ${
                 currentBounty.isCompleted
                   ? 'bg-emerald-950/80 border-emerald-500 text-emerald-200 ring-1 ring-emerald-500/40 shadow-[0_0_12px_rgba(16,185,129,0.25)]'
-                  : 'bg-[#0B0F17]/90 border-slate-800 text-slate-300 hover:border-amber-600/50'
+                  : 'bg-[#090D15]/90 border-slate-800 text-slate-300 hover:border-amber-600/50'
               }`}
-              title={`${currentBounty.title}: ${currentBounty.description}`}
+              title="Toque para ver detalhes da meta"
             >
-              <div className="flex items-center justify-between text-[9px] sm:text-[10px] font-mono">
+              <div className="flex items-center justify-between text-[8.5px] sm:text-[9.5px] font-mono">
                 <span className="flex items-center gap-1 truncate font-semibold">
                   {currentBounty.isCompleted ? (
-                    <Trophy className="w-3 h-3 text-amber-400 shrink-0 animate-bounce" />
+                    <Trophy className="w-2.5 h-2.5 text-amber-400 shrink-0 animate-bounce" />
                   ) : (
-                    <Target className="w-3 h-3 text-amber-400/80 shrink-0" />
+                    <Target className="w-2.5 h-2.5 text-amber-400/80 shrink-0" />
                   )}
                   <span className="truncate">{currentBounty.title}</span>
                 </span>
                 <span className="tabular-nums font-bold shrink-0 ml-1">
                   {currentBounty.isCompleted ? (
-                    <span className="text-emerald-300">✓ Feito!</span>
+                    <span className="text-emerald-300">✓ Feito</span>
                   ) : (
                     <span className="text-amber-400">
                       {currentBounty.currentCount}/{currentBounty.targetCount}
@@ -331,9 +373,14 @@ export const GameHUD: React.FC<GameHUDProps> = ({
                 </span>
               </div>
 
-              {/* Bounty Progress Bar */}
+              {bountyExpanded && !currentBounty.isCompleted && (
+                <div className="text-[8px] text-slate-400 mt-0.5 leading-tight line-clamp-2 border-t border-slate-800/80 pt-0.5">
+                  {currentBounty.description} ({currentBounty.rewardText})
+                </div>
+              )}
+
               {!currentBounty.isCompleted && (
-                <div className="w-full bg-slate-950 h-1 rounded-full overflow-hidden mt-0.5 border border-slate-900">
+                <div className="w-full bg-slate-950 h-0.5 sm:h-1 rounded-full overflow-hidden mt-0.5 border border-slate-900">
                   <div
                     className="h-full bg-gradient-to-r from-amber-600 to-yellow-400 transition-all duration-200"
                     style={{
@@ -348,22 +395,22 @@ export const GameHUD: React.FC<GameHUDProps> = ({
             </div>
           )}
 
-          {/* Dynamic Combo Meter (Item 4: Sistema de Combo & Frenesi) - DOCKED AT TOP */}
+          {/* Dynamic Combo Meter (Docked at Top Center, never blocking middle) */}
           {comboCount >= 2 && (
             <div
-              className={`w-full flex items-center justify-between gap-1.5 px-2 py-1 rounded-lg border backdrop-blur-md transition-all shadow-xl animate-in fade-in slide-in-from-top-1 duration-150 ${
+              className={`w-full flex items-center justify-between gap-1 px-2 py-0.5 rounded-lg border backdrop-blur-md transition-all shadow-lg animate-in fade-in duration-150 ${
                 comboCount >= 10
-                  ? 'bg-rose-950/90 border-rose-500 shadow-[0_0_15px_rgba(244,63,94,0.5)] ring-1 ring-rose-400'
+                  ? 'bg-rose-950/90 border-rose-500 ring-1 ring-rose-400'
                   : comboCount >= 8
-                  ? 'bg-orange-950/90 border-orange-500 shadow-[0_0_12px_rgba(249,115,22,0.4)]'
+                  ? 'bg-orange-950/90 border-orange-500'
                   : comboCount >= 5
-                  ? 'bg-amber-950/90 border-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.3)]'
-                  : 'bg-sky-950/90 border-sky-500 shadow-[0_0_8px_rgba(56,189,248,0.25)]'
+                  ? 'bg-amber-950/90 border-amber-500'
+                  : 'bg-sky-950/90 border-sky-500'
               }`}
             >
-              <div className="flex items-center gap-1.5 truncate">
+              <div className="flex items-center gap-1 truncate">
                 <span
-                  className={`font-black font-cinzel text-xs sm:text-sm tracking-tighter ${
+                  className={`font-black font-cinzel text-xs tracking-tighter ${
                     comboCount >= 10
                       ? 'text-rose-300 drop-shadow-[0_0_6px_rgba(244,63,94,0.8)]'
                       : comboCount >= 8
@@ -375,32 +422,13 @@ export const GameHUD: React.FC<GameHUDProps> = ({
                 >
                   {comboCount}x
                 </span>
-                <span
-                  className={`text-[9px] sm:text-[10px] font-mono font-bold uppercase truncate ${
-                    comboCount >= 10
-                      ? 'text-rose-200'
-                      : comboCount >= 8
-                      ? 'text-orange-200'
-                      : comboCount >= 5
-                      ? 'text-amber-200'
-                      : 'text-sky-200'
-                  }`}
-                >
-                  {comboCount >= 10
-                    ? 'Frenesi!'
-                    : comboCount >= 8
-                    ? 'Massacre!'
-                    : comboCount >= 5
-                    ? 'Chacina!'
-                    : 'Combo'}
-                </span>
-                <span className="text-[8px] sm:text-[9px] font-mono text-emerald-400 font-semibold truncate hidden sm:inline">
-                  +{Math.min(20, comboCount * 2)}% Vel
+                <span className="text-[8.5px] font-mono font-bold uppercase truncate text-slate-200">
+                  {comboCount >= 10 ? 'Frenesi' : comboCount >= 8 ? 'Massacre' : comboCount >= 5 ? 'Chacina' : 'Combo'}
                 </span>
               </div>
 
               {/* Draining Timer Bar */}
-              <div className="w-8 sm:w-12 bg-black/60 h-1.5 rounded-full overflow-hidden border border-white/10 shrink-0">
+              <div className="w-8 sm:w-10 bg-black/60 h-1 rounded-full overflow-hidden border border-white/10 shrink-0">
                 <div
                   className={`h-full rounded-full transition-all duration-75 ${
                     comboCount >= 10
@@ -423,102 +451,92 @@ export const GameHUD: React.FC<GameHUDProps> = ({
           )}
         </div>
 
-        {/* Top-Right: Controls & (on Mobile) Minimap Dock */}
-        <div className="flex flex-col items-end gap-2 pointer-events-auto">
-          {/* Header Action Buttons */}
-          <div className="flex items-center gap-1.5 sm:gap-2">
-            {/* Social Share / Seed Indicator */}
+        {/* 3. TOP-RIGHT: Global Action Buttons & Mobile Minimap Dock */}
+        <div className="flex flex-col items-end gap-1.5 pointer-events-auto shrink-0">
+          <div className="flex items-center gap-1 sm:gap-1.5">
+            {/* Seed / Floor Pill */}
             <button
               onClick={() => {
                 soundManager.playButtonClick();
                 onOpenSeedShare();
               }}
-              title="Compartilhar Desafio & Seed"
-              className="flex items-center gap-1.5 bg-gradient-to-b from-[#141C2B]/90 via-[#0B0F17]/95 to-[#070A10]/95 hover:from-[#1C263B] hover:to-[#101622] text-slate-200 border-t border-t-slate-700/60 border-x border-x-slate-800/80 border-b border-b-black/90 rounded-xl px-2.5 sm:px-3 py-1.5 text-xs font-mono transition-all shadow-[0_4px_12px_rgba(0,0,0,0.5)] active:scale-95"
+              title="Compartilhar Andar & Seed"
+              className="flex items-center gap-1 bg-[#0F1523]/95 hover:bg-slate-800 text-slate-200 border border-slate-700/80 rounded-xl px-2 py-1.5 text-[11px] font-mono transition-all shadow-md active:scale-95"
             >
-              <Share2 className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-              <span className="text-amber-400 font-cinzel font-bold">A.{floor}</span>
-              <span aria-hidden="true" className="text-slate-600 hidden sm:inline">|</span>
-              <span className="truncate max-w-[60px] hidden sm:inline text-slate-300 font-semibold">{seed.slice(0, 6)}</span>
+              <Share2 className="w-3 h-3 text-amber-400 shrink-0" />
+              <span className="text-amber-400 font-bold">A.{floor}</span>
             </button>
 
-            {/* Mochila (Backpack) - Available on Mobile & Desktop */}
+            {/* Mochila (Backpack) */}
             <button
               onClick={() => {
                 soundManager.playButtonClick();
                 onOpenInventory();
               }}
-              title="Inventário (Mochila)"
-              className="flex items-center gap-1.5 bg-gradient-to-b from-[#141C2B]/90 via-[#0B0F17]/95 to-[#070A10]/95 hover:from-[#1C263B] hover:to-[#101622] text-slate-200 border-t border-t-slate-700/60 border-x border-x-slate-800/80 border-b border-b-black/90 rounded-xl px-2.5 sm:px-3 py-1.5 text-xs font-mono transition-all shadow-[0_4px_12px_rgba(0,0,0,0.5)] active:scale-95 relative"
+              title="Mochila"
+              className="bg-[#0F1523]/95 hover:bg-slate-800 text-slate-200 border border-slate-700/80 rounded-xl p-1.5 sm:px-2 sm:py-1.5 transition-all shadow-md active:scale-95 relative"
             >
-              <Shield className="w-3.5 h-3.5 text-cyan-400" />
-              <span className="hidden sm:inline font-bold">MOCHILA</span>
+              <Backpack className="w-3.5 h-3.5 text-cyan-400" />
               {player.inventory.some((i) => i?.isNew) && (
                 <span
-                  className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-cyan-400 border border-black shadow-[0_0_8px_#22d3ee] animate-pulse"
-                  title="Novo item na mochila!"
+                  className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-cyan-400 border border-black shadow-[0_0_6px_#22d3ee] animate-pulse"
+                  title="Novo item!"
                 />
               )}
             </button>
 
-            {/* Mobile Minimap Toggle Button */}
-            {isMobile && (
-              <button
-                onClick={() => {
-                  soundManager.playButtonClick();
-                  setMobileMinimapVisible(!mobileMinimapVisible);
-                }}
-                title={mobileMinimapVisible ? 'Ocultar Minimapa' : 'Exibir Minimapa'}
-                className="bg-gradient-to-b from-[#141C2B]/90 via-[#0B0F17]/95 to-[#070A10]/95 hover:from-[#1C263B] hover:to-[#101622] text-slate-300 border-t border-t-slate-700/60 border-x border-x-slate-800/80 border-b border-b-black/90 rounded-xl p-2 transition-all shadow-[0_4px_12px_rgba(0,0,0,0.5)] active:scale-95"
-              >
-                <Map className={`w-4 h-4 ${mobileMinimapVisible ? 'text-sky-400' : 'text-slate-500'}`} />
-              </button>
-            )}
-
-            {/* Fullscreen Toggle Button */}
+            {/* Minimap Toggle */}
             <button
-              onClick={handleToggleFullscreen}
-              title={isFullscreen ? 'Sair da Tela Cheia' : 'Tela Cheia (Fullscreen)'}
-              className={`border rounded-xl p-2 transition-all shadow-[0_4px_12px_rgba(0,0,0,0.5)] flex items-center justify-center active:scale-95 ${
-                isFullscreen
-                  ? 'border-emerald-600/80 text-emerald-400 bg-emerald-950/60 ring-1 ring-emerald-500/50'
-                  : 'bg-gradient-to-b from-[#141C2B]/90 via-[#0B0F17]/95 to-[#070A10]/95 hover:from-[#1C263B] hover:to-[#101622] border-t border-t-slate-700/60 border-x border-x-slate-800/80 border-b border-b-black/90 text-slate-300 hover:text-white'
+              onClick={() => {
+                soundManager.playButtonClick();
+                setMobileMinimapVisible(!mobileMinimapVisible);
+              }}
+              title={mobileMinimapVisible ? 'Ocultar Mapa' : 'Exibir Mapa'}
+              className={`border rounded-xl p-1.5 transition-all shadow-md active:scale-95 ${
+                mobileMinimapVisible
+                  ? 'border-sky-500/80 bg-sky-950/70 text-sky-300'
+                  : 'bg-[#0F1523]/95 border-slate-700/80 text-slate-400 hover:text-slate-200'
               }`}
             >
-              {isFullscreen ? (
-                <Minimize2 className="w-4 h-4" />
-              ) : (
-                <Maximize2 className="w-4 h-4" />
-              )}
+              <Compass className="w-3.5 h-3.5" />
             </button>
 
-            {/* Pause Button */}
+            {/* Fullscreen */}
+            <button
+              onClick={handleToggleFullscreen}
+              title={isFullscreen ? 'Sair da Tela Cheia' : 'Tela Cheia'}
+              className="bg-[#0F1523]/95 hover:bg-slate-800 text-slate-300 border border-slate-700/80 rounded-xl p-1.5 transition-all shadow-md active:scale-95"
+            >
+              {isFullscreen ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+            </button>
+
+            {/* Pause */}
             <button
               onClick={() => {
                 soundManager.playButtonClick();
                 onPause();
               }}
-              title="Pausar jogo"
-              className="bg-gradient-to-b from-[#141C2B]/90 via-[#0B0F17]/95 to-[#070A10]/95 hover:from-[#1C263B] hover:to-[#101622] text-slate-200 border-t border-t-slate-700/60 border-x border-x-slate-800/80 border-b border-b-black/90 rounded-xl p-2 transition-all shadow-[0_4px_12px_rgba(0,0,0,0.5)] flex items-center justify-center active:scale-95"
+              title="Pausar"
+              className="bg-[#0F1523]/95 hover:bg-slate-800 text-slate-200 border border-slate-700/80 rounded-xl p-1.5 transition-all shadow-md active:scale-95"
             >
-              <Pause className="w-4 h-4 text-slate-300" />
+              <Pause className="w-3.5 h-3.5 text-slate-300" />
             </button>
           </div>
 
-          {/* MOBILE MINIMAP DOCK (Top-Right, completely free from joystick on bottom-left and attack on bottom-right) */}
+          {/* MOBILE MINIMAP (Clean, non-intrusive dock) */}
           {isMobile && mobileMinimapVisible && (
             <div
               onClick={() => {
                 soundManager.playButtonClick();
                 setMinimapZoomed(!minimapZoomed);
               }}
-              className={`bg-[#0B0F17]/95 border border-slate-800 rounded-xl p-1.5 transition-all duration-200 cursor-pointer shadow-2xl relative ${
-                minimapZoomed ? 'w-44 h-44 sm:w-52 sm:h-52 ring-1 ring-sky-500/50' : 'w-24 h-24'
+              className={`bg-[#080B12]/95 border border-slate-800 rounded-xl p-1 transition-all duration-200 cursor-pointer shadow-2xl relative ${
+                minimapZoomed ? 'w-36 h-36 ring-1 ring-sky-500/50' : 'w-20 h-20'
               }`}
-              title="Toque para alternar o tamanho do minimapa"
+              title="Toque para alternar o zoom do minimapa"
             >
               {renderMinimapSvg()}
-              <div className="absolute bottom-1 right-1 bg-black/60 rounded px-1 text-[8px] font-mono text-slate-400 pointer-events-none">
+              <div className="absolute bottom-1 right-1 bg-black/75 rounded px-1 text-[7.5px] font-mono text-slate-400 pointer-events-none">
                 {minimapZoomed ? 'Zoom -' : 'Zoom +'}
               </div>
             </div>
@@ -526,25 +544,25 @@ export const GameHUD: React.FC<GameHUDProps> = ({
         </div>
       </div>
 
-      {/* Floor Alert if Boss - Anchored at the top below header */}
+      {/* Floor Alert if Boss Floor */}
       {floor % 10 === 0 && (
-        <div className="absolute top-24 left-1/2 -translate-x-1/2 bg-rose-950/80 border border-rose-600/70 text-rose-200 px-4 py-1.5 rounded-lg text-xs sm:text-sm font-cinzel font-bold tracking-widest uppercase shadow-2xl animate-pulse pointer-events-none z-20">
+        <div className="absolute top-20 left-1/2 -translate-x-1/2 bg-rose-950/85 border border-rose-600/70 text-rose-200 px-3 py-1 rounded-lg text-xs font-cinzel font-bold tracking-widest uppercase shadow-2xl animate-pulse pointer-events-none z-20">
           CÂMARA DA FOME — ANDAR {floor}
         </div>
       )}
 
-      {/* Bottom Row: Desktop Minimap (Left) & Desktop Skill Bar (Center) */}
+      {/* DESKTOP ONLY: Bottom Row (Minimap on Left & Mechanical Skill Bar on Center) */}
       {!isMobile && (
-        <div className="flex items-end justify-between w-full p-2 md:p-4">
-          {/* Bottom-Left: Desktop Minimap */}
+        <div className="flex items-end justify-between w-full p-2 md:p-3">
+          {/* Bottom-Left Desktop Minimap */}
           <div className="pointer-events-auto">
             <div
               onClick={() => {
                 soundManager.playButtonClick();
                 setMinimapZoomed(!minimapZoomed);
               }}
-              className={`bg-[#0B0F17]/95 border border-slate-800 rounded-lg p-1.5 transition-all duration-200 cursor-pointer shadow-2xl ${
-                minimapZoomed ? 'w-48 h-48 md:w-56 md:h-56' : 'w-28 h-28 md:w-32 md:h-32'
+              className={`bg-[#080B12]/95 border border-slate-800 rounded-xl p-1.5 transition-all duration-200 cursor-pointer shadow-2xl ${
+                minimapZoomed ? 'w-48 h-48 md:w-56 md:h-56 ring-1 ring-sky-500/40' : 'w-28 h-28 md:w-32 md:h-32'
               }`}
               title="Clique para ampliar o minimapa"
             >
@@ -552,7 +570,7 @@ export const GameHUD: React.FC<GameHUDProps> = ({
             </div>
           </div>
 
-          {/* Bottom-Center: Desktop Skill Bar with Styled Mechanical Keycaps */}
+          {/* Bottom-Center Desktop Skill Bar */}
           <div className="pointer-events-auto flex items-center gap-2 bg-gradient-to-b from-[#0F1422]/95 via-[#0B0E17]/95 to-[#07090F]/95 border-t border-t-slate-700/60 border-x border-x-slate-800/80 border-b border-b-black/90 p-2 sm:p-2.5 rounded-2xl backdrop-blur-md shadow-[0_12px_32px_rgba(0,0,0,0.7)] ring-1 ring-white/5 mb-1">
             {player.skills.map((skill, idx) => {
               const isCooling = skill.currentCooldown > 0;
@@ -578,14 +596,12 @@ export const GameHUD: React.FC<GameHUDProps> = ({
                   }`}
                   title={`${skill.name} (${skillHotkeys[idx]}): ${skill.description}`}
                 >
-                  {/* Cooldown Mask with Amber Numeric Timer */}
                   {isCooling && (
                     <div className="absolute inset-0 bg-black/75 rounded-xl flex items-center justify-center text-xs font-mono font-black text-amber-300">
                       {skill.currentCooldown.toFixed(1)}s
                     </div>
                   )}
 
-                  {/* Skill Affinity Icon */}
                   <div className="flex items-center justify-center -mt-1">
                     {idx === 0 && <Swords className="w-4 h-4 text-amber-300" />}
                     {idx === 1 && <Zap className="w-4 h-4 text-cyan-300" />}
@@ -597,7 +613,6 @@ export const GameHUD: React.FC<GameHUDProps> = ({
                     {skill.name.split(' ')[0]}
                   </span>
 
-                  {/* Mechanical Keycap Badge */}
                   <span className="absolute -top-1.5 -right-1 px-1.5 py-0.5 rounded bg-[#07090E] border-t border-slate-600 border-x border-slate-800 border-b-2 border-b-black shadow-[0_2px_4px_rgba(0,0,0,0.8)] text-[8px] font-mono font-black text-slate-300 leading-none">
                     {skillHotkeys[idx]}
                   </span>
@@ -605,7 +620,6 @@ export const GameHUD: React.FC<GameHUDProps> = ({
               );
             })}
 
-            {/* Consumables Quick Slots: Q (Poção), E (Pergaminho), R (Elixir) */}
             <div className="w-[1px] h-8 bg-slate-800/80 mx-1" />
 
             {/* Quick Potion slot (Q) */}
@@ -626,7 +640,6 @@ export const GameHUD: React.FC<GameHUDProps> = ({
                 <ItemIcon item="Frasco de Sangue Frio" size={24} />
               </div>
               <span className="text-[10px] font-mono font-black text-rose-200 mt-0.5">x{player.potionsCount}</span>
-              {/* Mechanical Keycap Badge Q */}
               <span className="absolute -top-1.5 -right-1 px-1.5 py-0.5 rounded bg-[#07090E] border-t border-rose-500/80 border-x border-slate-800 border-b-2 border-b-black shadow-[0_2px_4px_rgba(0,0,0,0.8)] text-[8px] font-mono font-black text-rose-300 leading-none">
                 Q
               </span>
@@ -662,7 +675,6 @@ export const GameHUD: React.FC<GameHUDProps> = ({
               <span className="text-[9px] font-mono font-bold tracking-tight px-0.5 truncate w-full text-center mt-0.5">
                 {firstScroll ? (scrollCount > 1 ? `x${scrollCount}` : firstScroll.name.replace(/^Pergaminho\s+(da|do|de)?\s*/i, '').split(' ')[0]) : 'Vazio'}
               </span>
-              {/* Mechanical Keycap Badge E */}
               <span className={`absolute -top-1.5 -right-1 px-1.5 py-0.5 rounded bg-[#07090E] border-t ${firstScroll ? 'border-amber-400' : 'border-slate-700'} border-x border-slate-800 border-b-2 border-b-black shadow-[0_2px_4px_rgba(0,0,0,0.8)] text-[8px] font-mono font-black ${firstScroll ? 'text-amber-300' : 'text-slate-600'} leading-none`}>
                 E
               </span>
@@ -698,14 +710,12 @@ export const GameHUD: React.FC<GameHUDProps> = ({
               <span className="text-[9px] font-mono font-bold tracking-tight px-0.5 truncate w-full text-center mt-0.5">
                 {firstElixir ? (elixirCount > 1 ? `x${elixirCount}` : firstElixir.name.replace(/^Elixir\s+(da|do|de)?\s*/i, '').split(' ')[0]) : 'Vazio'}
               </span>
-              {/* Mechanical Keycap Badge R */}
               <span className={`absolute -top-1.5 -right-1 px-1.5 py-0.5 rounded bg-[#07090E] border-t ${firstElixir ? 'border-purple-400' : 'border-slate-700'} border-x border-slate-800 border-b-2 border-b-black shadow-[0_2px_4px_rgba(0,0,0,0.8)] text-[8px] font-mono font-black ${firstElixir ? 'text-purple-300' : 'text-slate-600'} leading-none`}>
                 R
               </span>
             </button>
           </div>
 
-          {/* Empty placeholder for balance when desktop */}
           <div className="w-28 md:w-32 flex-shrink-0" />
         </div>
       )}

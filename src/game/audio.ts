@@ -265,6 +265,62 @@ class SoundEngine {
     osc.stop(t + 0.11);
   }
 
+  public playEquipItem(isRare = false) {
+    this.initContext();
+    if (!this.ctx || !this.sfxGain || this.settings.isMuted) return;
+
+    const t = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(520, t);
+    osc.frequency.exponentialRampToValueAtTime(180, t + 0.08);
+
+    gain.gain.setValueAtTime(0.28, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.09);
+
+    osc.connect(gain);
+    gain.connect(this.sfxGain);
+    osc.start(t);
+    osc.stop(t + 0.1);
+
+    if (isRare) {
+      const chime = this.ctx.createOscillator();
+      const chimeGain = this.ctx.createGain();
+      chime.type = 'sine';
+      chime.frequency.setValueAtTime(1046.5, t + 0.02);
+      chimeGain.gain.setValueAtTime(0.18, t + 0.02);
+      chimeGain.gain.exponentialRampToValueAtTime(0.001, t + 0.4);
+      chime.connect(chimeGain);
+      chimeGain.connect(this.sfxGain);
+      chime.start(t + 0.02);
+      chime.stop(t + 0.42);
+    }
+  }
+
+  public playDismantle() {
+    this.initContext();
+    if (!this.ctx || !this.sfxGain || this.settings.isMuted) return;
+
+    const t = this.ctx.currentTime;
+    [400, 750, 1200].forEach((freq, idx) => {
+      if (!this.ctx || !this.sfxGain) return;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(freq, t + idx * 0.04);
+      osc.frequency.exponentialRampToValueAtTime(freq * 0.4, t + 0.2 + idx * 0.04);
+
+      gain.gain.setValueAtTime(0.18, t + idx * 0.04);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.25 + idx * 0.04);
+
+      osc.connect(gain);
+      gain.connect(this.sfxGain);
+      osc.start(t + idx * 0.04);
+      osc.stop(t + 0.3 + idx * 0.04);
+    });
+  }
+
   public playLevelUp() {
     this.initContext();
     if (!this.ctx || !this.sfxGain || this.settings.isMuted) return;

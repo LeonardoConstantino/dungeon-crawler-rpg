@@ -360,10 +360,20 @@ export default function App() {
             currentBounty={engine.currentBounty}
             onPause={() => {
               engine.isPaused = true;
+              engine.setMoveInput(0, 0);
+              engine.setAttackPressed(false);
               setIsPauseOpen(true);
             }}
-            onOpenInventory={() => setIsInventoryOpen(true)}
-            onOpenSeedShare={() => setIsSeedShareOpen(true)}
+            onOpenInventory={() => {
+              engine.setMoveInput(0, 0);
+              engine.setAttackPressed(false);
+              setIsInventoryOpen(true);
+            }}
+            onOpenSeedShare={() => {
+              engine.setMoveInput(0, 0);
+              engine.setAttackPressed(false);
+              setIsSeedShareOpen(true);
+            }}
             onTriggerSkill={(idx) => engine.triggerSkill(idx)}
             onUsePotion={() => engine.usePotion()}
             onUseScroll={() => engine.useFirstScroll()}
@@ -417,6 +427,10 @@ export default function App() {
           onUnequip={(slot) => engine.unequipItem(slot)}
           onDiscard={(idx) => engine.discardItem(idx)}
           onDiscardEquipped={(slot) => engine.discardEquippedItem(slot)}
+          onToggleLock={(idx) => engine.toggleItemLock(idx)}
+          onToggleLockEquipped={(slot) => engine.toggleEquippedItemLock(slot)}
+          onDismantle={(idx) => engine.dismantleItem(idx)}
+          onSortInventory={() => engine.sortInventory()}
         />
       )}
 

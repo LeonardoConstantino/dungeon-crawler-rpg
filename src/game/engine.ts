@@ -1929,16 +1929,14 @@ export class GameEngine {
     return false;
   }
 
-  public equipItem(inventoryIndex: number, targetSlot?: keyof PlayerState['equipment']) {
+  public equipItem(inventoryIndex: number, targetSlot?: keyof PlayerState['equipment']): boolean {
     const item = this.player.inventory[inventoryIndex];
-    if (!item) return;
+    if (!item) return false;
 
+    // Consumables are consumed rather than worn
     if (item.type === 'potion' || item.type === 'scroll' || item.type === 'elixir') {
-      this.useItem(inventoryIndex);
-      return;
+      return this.useItem(inventoryIndex);
     }
-
-    soundManager.playButtonClick();
 
     if (item.type === 'weapon') {
       const old = this.player.equipment.weapon;
@@ -1967,29 +1965,75 @@ export class GameEngine {
       const old = this.player.equipment.amulet;
       this.player.equipment.amulet = item;
       this.player.inventory[inventoryIndex] = old;
+    } else {
+      if (this.onMessage) this.onMessage('Este item não pode ser equipado.', 'info');
+      return false;
     }
 
+    soundManager.playEquipItem(item.rarity === 'legendary' || item.rarity === 'rare');
     this.recalculatePlayerStats();
+    return true;
   }
 
-  public unequipItem(slot: keyof PlayerState['equipment']) {
+  public unequipItem(slot: keyof PlayerState['equipment']): boolean {
     const item = this.player.equipment[slot];
-    if (!item) return;
+    if (!item) return false;
 
     const emptyIdx = this.player.inventory.findIndex((s) => s === null);
-    if (emptyIdx !== -1) {
-      this.player.inventory[emptyIdx] = item;
-      this.player.equipment[slot] = null;
-      soundManager.playButtonClick();
-      this.recalculatePlayerStats();
-    } else {
-      if (this.onMessage) this.onMessage('Inventário cheio para desequipar.', 'info');
+    if (emptyIdx === -1) {
+      if (this.onMessage) this.onMessage('Mochila cheia! Libere espaço para desequipar.', 'info');
+      return false;
     }
+
+    this.player.inventory[emptyIdx] = item;
+    this.player.equipment[slot] = null;
+    soundManager.playButtonClick();
+    this.recalculatePlayerStats();
+    return true;
   }
 
-  public discardItem(inventoryIndex: number) {
+  public toggleItemLock(inventoryIndex: number): boolean {
     const item = this.player.inventory[inventoryIndex];
-    if (!item) return;
+    if (!item) return false;
+    item.isLocked = !item.isLocked;
+    soundManager.playButtonClick();
+    if (this.onMessage) {
+      this.onMessage(
+        item.isLocked
+          ? `Item protegido: "${item.name}" (Imune a descarte/dissolução)`
+          : `Proteção removida: "${item.name}"`,
+        'info'
+      );
+    }
+    return Boolean(item.isLocked);
+  }
+
+  public toggleEquippedItemLock(slot: keyof PlayerState['equipment']): boolean {
+    const item = this.player.equipment[slot];
+    if (!item) return false;
+    item.isLocked = !item.isLocked;
+    soundManager.playButtonClick();
+    if (this.onMessage) {
+      this.onMessage(
+        item.isLocked
+          ? `Equipamento protegido: "${item.name}"`
+          : `Proteção removida: "${item.name}"`,
+        'info'
+      );
+    }
+    return Boolean(item.isLocked);
+  }
+
+  public discardItem(inventoryIndex: number): boolean {
+    const item = this.player.inventory[inventoryIndex];
+    if (!item) return false;
+
+    // Protection rule validation (Domain Layer)
+    if (item.isLocked) {
+      if (this.onMessage) this.onMessage('Item protegido com cadeado! Remova a proteção antes de descartar.', 'danger');
+      return false;
+    }
+
     this.player.inventory[inventoryIndex] = null;
 
     // Drop onto ground at player location with requireWalkAway
@@ -2006,11 +2050,18 @@ export class GameEngine {
 
     soundManager.playButtonClick();
     if (this.onMessage) this.onMessage(`Item largado no chão: ${item.name}`, 'info');
+    return true;
   }
 
-  public discardEquippedItem(slot: keyof PlayerState['equipment']) {
+  public discardEquippedItem(slot: keyof PlayerState['equipment']): boolean {
     const item = this.player.equipment[slot];
-    if (!item) return;
+    if (!item) return false;
+
+    if (item.isLocked) {
+      if (this.onMessage) this.onMessage('Equipamento protegido com cadeado! Remova a proteção antes de descartar.', 'danger');
+      return false;
+    }
+
     this.player.equipment[slot] = null;
     this.recalculatePlayerStats();
 
@@ -2028,6 +2079,106 @@ export class GameEngine {
 
     soundManager.playButtonClick();
     if (this.onMessage) this.onMessage(`Item desequipado e largado no chão: ${item.name}`, 'info');
+    return true;
+  }
+
+  public dismantleItem(inventoryIndex: number): boolean {
+    const item = this.player.inventory[inventoryIndex];
+    if (!item) return false;
+
+    if (item.isLocked) {
+      if (this.onMessage) this.onMessage('Item protegido com cadeado! Não pode ser dissolvido.', 'danger');
+      return false;
+    }
+
+    // Calculate remnants reward based on rarity
+    const rewardRemnants =
+      item.rarity === 'legendary'
+        ? 15
+        : item.rarity === 'rare'
+        ? 6
+        : item.type === 'scroll' || item.type === 'elixir' || item.type === 'potion'
+        ? 1
+        : 2;
+
+    this.player.inventory[inventoryIndex] = null;
+    this.abyssRemnantsEarned += rewardRemnants;
+    Storage.addAbyssRemnants(rewardRemnants);
+
+    soundManager.playDismantle();
+    this.triggerScreenShake(3);
+    this.createParticles(this.player.x, this.player.y, '#C084FC', 20);
+    this.addFloatingText(this.player.x, this.player.y - 0.7, `+${rewardRemnants} Vestígios`, '#C084FC');
+
+    if (this.onMessage) {
+      this.onMessage(`Item dissolvido em +${rewardRemnants} Vestígios do Abismo!`, 'rare');
+    }
+    return true;
+  }
+
+  public sortInventory(): void {
+    const items = this.player.inventory.filter((item): item is Item => item !== null);
+    if (items.length === 0) return;
+
+    // Rarity rank: legendary (3) > rare (2) > common (1)
+    const rarityRank = (r: string) => (r === 'legendary' ? 3 : r === 'rare' ? 2 : 1);
+
+    // Type category rank
+    const typeRank = (t: string) => {
+      switch (t) {
+        case 'weapon': return 7;
+        case 'armor': return 6;
+        case 'amulet': return 5;
+        case 'ring': return 4;
+        case 'scroll': return 3;
+        case 'elixir': return 2;
+        case 'potion': return 1;
+        default: return 0;
+      }
+    };
+
+    // Calculate rough item power for consistent tie-breaking
+    const getItemPower = (i: Item) => {
+      const stats = i.stats || {};
+      return (
+        (stats.attack || 0) * 10 +
+        (stats.defense || 0) * 8 +
+        (stats.maxHp || 0) * 2 +
+        (stats.critChance || 0) * 100 +
+        (stats.cooldownReduction || 0) * 100 +
+        (stats.speed || 0) * 20 +
+        (i.value || 0)
+      );
+    };
+
+    items.sort((a, b) => {
+      // 1. Rarity descending
+      const rDiff = rarityRank(b.rarity) - rarityRank(a.rarity);
+      if (rDiff !== 0) return rDiff;
+
+      // 2. Category descending
+      const tDiff = typeRank(b.type) - typeRank(a.type);
+      if (tDiff !== 0) return tDiff;
+
+      // 3. Power descending
+      const pDiff = getItemPower(b) - getItemPower(a);
+      if (pDiff !== 0) return pDiff;
+
+      // 4. Stable tie-breaker by name and ID
+      return a.name.localeCompare(b.name) || a.id.localeCompare(b.id);
+    });
+
+    // Reconstruct 20 slots: sorted items first, then empty slots
+    const newInventory: (Item | null)[] = Array(20).fill(null);
+    for (let i = 0; i < items.length && i < 20; i++) {
+      newInventory[i] = items[i];
+    }
+    this.player.inventory = newInventory;
+
+    soundManager.playButtonClick();
+    if (this.onMessage) {
+      this.onMessage('Mochila organizada por raridade e categoria.', 'info');
+    }
   }
 
   public saveCurrentProgress() {

@@ -42,6 +42,7 @@ export interface Item {
   duration?: number;
   value: number;
   isNew?: boolean;
+  isLocked?: boolean;
 }
 
 export interface Skill {
